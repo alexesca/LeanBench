@@ -1,0 +1,47 @@
+id            = "httpx-dev-005"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "symbol_location"
+difficulty    = "L1"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["decoders"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Which class decodes gzip response bodies, and what exception does it raise on malformed
+data?
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "GZipDecoder zlib decompressobj MAX_WBITS DecodingError", limit = 5 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "what handles bodies compressed with the most common compression format", limit = 5 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "a corrupt compressed reply should surface as a decoding failure, not a zlib error", limit = 5 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_decoders.py", "httpx/_exceptions.py"]
+symbols       = ["GZipDecoder", "DecodingError"]
+ranges        = [{ path = "httpx/_decoders.py", start = 85, end = 105 }, { path = "httpx/_exceptions.py", start = 243, end = 246 }]
+justification = "GZipDecoder wraps zlib with the gzip window bits and converts zlib.error into DecodingError in both decode and flush."
+
+[limits]
+max_tool_calls        = 5
+max_repository_tokens = 4000
+wall_clock_s          = 8

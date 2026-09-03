@@ -1,0 +1,13 @@
+[project]
+name = "shopcart"
+version = "0.2.0"
+description = "A small structured example package used as a LeanBench fixture repository"
+requires-python = ">=3.10"
+
+[tool.shopcart]
+default_currency = "EUR"
+max_payment_attempts = 3
+tax_regions = ["EU", "UK", "US"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

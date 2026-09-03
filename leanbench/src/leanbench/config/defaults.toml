@@ -1,0 +1,94 @@
+# LeanBench defaults. Every tunable in the system MUST have a key here — there are no
+# inline magic numbers for thresholds, timeouts, weights, K values or limits.
+
+[run]
+runs_dir = "runs"
+log_level = "INFO"
+# Above this fraction of infrastructure failures the run is DEGRADED (PROTOCOL.md §7).
+degraded_infrastructure_failure_rate = 0.05
+
+[candidate]
+# Defaults used when a manifest omits [timeouts]; the manifest always wins.
+startup_timeout_s = 10.0
+prepare_timeout_s = 600.0
+op_timeout_s = 30.0
+shutdown_timeout_s = 5.0
+# Grace between SIGTERM and SIGKILL of the process group.
+kill_grace_s = 2.0
+# How much stderr is retained per candidate for failure reports.
+stderr_tail_bytes = 8192
+# Poll interval while waiting for a line on stdout.
+read_poll_interval_s = 0.01
+# Cap on a single stdout line; longer is a protocol error, not an OOM.
+max_line_bytes = 8388608
+default_format = "compact"
+# Sampling of external resource usage (psutil).
+resource_sample_interval_s = 0.25
+
+[retrieval]
+# TASKS.md §4.1: Recall@{1,5,10}, Precision@{1,5,10}, nDCG@10.
+recall_k = [1, 5, 10]
+precision_k = [1, 5, 10]
+ndcg_k = 10
+# Per-probe result cap applied when a probe omits `limit`.
+default_limit = 10
+# Per-probe output budget handed to the candidate; 0 = send null (candidate default).
+token_budget = 0
+# Probes are issued in JSON form: TASKS.md §4.1 reduces *structured* results to
+# gold-comparable identifiers, which a compact string rendering cannot supply. The same
+# format is used for every candidate in a run, so token figures stay comparable.
+# The agent track uses `candidate.default_format` (compact), which is what a model sees.
+probe_format = "json"
+# Worst-case/mean gap above which a candidate is flagged brittle on a task.
+brittleness_gap = 0.30
+primary_metric = "ndcg_at_10"
+
+[agent]
+max_tool_calls = 20
+max_repository_tokens = 30000
+wall_clock_s = 180.0
+# TASKS.md §4.2 correctness weights, renormalized over non-empty gold categories.
+weight_symbols = 0.5
+weight_files = 0.3
+weight_tests = 0.1
+weight_relationships = 0.1
+
+[tokens]
+# "approximate" | "model" — ONE tokenizer per run, identical for all candidates.
+counter = "approximate"
+model = "gpt-4o"
+encoding = "o200k_base"
+# ApproximateTokenCounter: tokens ~= ceil(chars / chars_per_token) with a floor per
+# non-empty payload. Calibrated against cl100k on source text.
+chars_per_token = 4.0
+min_tokens_nonempty = 1
+# Marker used in reports for approximate figures.
+approximate_marker = "~"
+
+[gateway]
+# Hard ceilings enforced by the gateway itself, independent of task limits.
+max_read_bytes = 262144
+max_list_entries = 500
+max_search_results = 100
+max_search_bytes = 65536
+truncation_notice = "[truncated by leanbench gateway]"
+# Extensions the repository port will serve as text.
+text_extensions = [".py", ".md", ".toml", ".txt", ".cfg", ".ini", ".json", ".yaml", ".yml", ".rst"]
+# Directories never served by repo.list / repo.search.
+excluded_dirs = [".git", "__pycache__", ".venv", "node_modules", ".mypy_cache", ".pytest_cache"]
+
+[suite]
+# Suite gate: fraction of tasks that must be informative (TASKS.md §5).
+min_informative_fraction = 0.60
+# Triage flag thresholds (TASKS.md §5).
+ceiling_threshold = 0.95
+floor_threshold = 0.05
+unstable_cv = 0.20
+
+[report]
+float_precision = 4
+top_n_tasks = 10
+
+[storage]
+sqlite_filename = "leanbench.sqlite3"
+enabled = true

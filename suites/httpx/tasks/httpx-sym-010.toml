@@ -1,0 +1,49 @@
+id            = "httpx-sym-010"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "symbol_location"
+difficulty    = "L2"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["redirects", "models", "status-codes"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Not every 3xx response is treated as a redirect worth following. Which property encodes
+the stricter rule, which status codes does it accept, and which client method consults
+it?
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "has_redirect_location MOVED_PERMANENTLY FOUND SEE_OTHER Location header", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "what makes the client decide a response actually points somewhere else", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "a 304 response is not being followed even though the code is in the 300 range", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_models.py", "httpx/_client.py"]
+symbols       = ["Response.has_redirect_location", "Response.is_redirect", "Client._send_handling_redirects"]
+ranges        = [{ path = "httpx/_models.py", start = 771, end = 792 }, { path = "httpx/_models.py", start = 738, end = 748 }, { path = "httpx/_client.py", start = 964, end = 999 }]
+relationships = [["Client._send_handling_redirects", "CALLS", "Response.has_redirect_location"]]
+justification = "has_redirect_location narrows is_redirect to the five method-preserving or method-changing codes and additionally requires a Location header; the redirect loop branches on it, so is_redirect alone is the wrong answer."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

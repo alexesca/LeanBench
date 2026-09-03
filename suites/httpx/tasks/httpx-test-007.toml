@@ -1,0 +1,48 @@
+id            = "httpx-test-007"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "tests"
+difficulty    = "L2"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["decoders", "coverage", "optional-deps"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Which tests cover the failure paths of the optional zstandard content decoder, and what
+exception type must those failures surface as?
+"""
+
+required_capabilities = ["search", "tests"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "zstd decoder tests decoding error truncated multiframe DecodingError", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "how is a corrupt compressed body covered for the newest supported compression format", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "a truncated compressed response should raise a decoding failure rather than a library error", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_decoders.py"]
+symbols       = ["ZStandardDecoder", "ZStandardDecoder.decode", "ZStandardDecoder.flush"]
+tests         = ["tests/test_decoders.py"]
+ranges        = [{ path = "httpx/_decoders.py", start = 161, end = 200 }]
+justification = "tests/test_decoders.py holds test_zstd, test_zstd_decoding_error, test_zstd_empty, test_zstd_truncated and test_zstd_multiframe; ZStandardDecoder converts the library's ZstdError, and an incomplete frame detected in flush, into httpx.DecodingError."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

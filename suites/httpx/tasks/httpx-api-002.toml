@@ -1,0 +1,48 @@
+id            = "httpx-api-002"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "api_contract"
+difficulty    = "L2"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["config", "timeouts", "validation"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Enumerate the argument shapes accepted by the timeout configuration constructor, and
+state exactly which combination is rejected and with what message.
+"""
+
+required_capabilities = ["search", "symbols", "tests"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "Timeout constructor connect read write pool UNSET tuple ValueError", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "what ways can I express a duration limit and which of them is refused", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "ValueError says it must either include a default or set all four parameters explicitly", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_config.py"]
+symbols       = ["Timeout.__init__", "Timeout.as_dict"]
+tests         = ["tests/test_config.py"]
+ranges        = [{ path = "httpx/_config.py", start = 86, end = 130 }, { path = "httpx/_config.py", start = 132, end = 138 }]
+justification = "Timeout.__init__ accepts an existing instance, a 2-to-4 tuple, all four keywords explicitly, or a positional default optionally overridden per keyword; the only rejected case is an unset positional default combined with a partial keyword set."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

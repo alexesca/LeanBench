@@ -1,0 +1,48 @@
+id            = "httpx-beh-001"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "behavior"
+difficulty    = "L3"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["redirects", "methods", "bodies"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+A POST receives a 303 response. What method is used for the follow-up request, what
+happens to the body, and which headers are dropped?
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "_redirect_method _redirect_stream _redirect_headers 303 See Other GET body", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "what does the follow-up call look like when the server tells the client to look elsewhere", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "after being redirected the server complains that the body of my upload is missing", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_client.py"]
+symbols       = ["BaseClient._redirect_method", "BaseClient._redirect_stream", "BaseClient._redirect_headers", "BaseClient._build_redirect_request"]
+tests         = ["tests/client/test_redirects.py"]
+ranges        = [{ path = "httpx/_client.py", start = 494, end = 515 }, { path = "httpx/_client.py", start = 573, end = 582 }, { path = "httpx/_client.py", start = 546, end = 571 }, { path = "httpx/_client.py", start = 475, end = 492 }]
+justification = "303 (and 302, and 301 for POST) switches the method to GET; _redirect_stream then returns None so no body is replayed, and _redirect_headers drops Content-Length and Transfer-Encoding for the switched request, as well as Cookie, which is always rebuilt from the client jar."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

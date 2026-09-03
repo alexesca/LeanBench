@@ -1,0 +1,26 @@
+protocol_version = 1
+
+[candidate]
+name = "slow"
+version = "0.1.0"
+
+[runtime]
+command = "python3"
+args = ["main.py", "--mode", "slow", "--strategy", "symbol"]
+cwd = ".."
+
+[timeouts]
+startup_s = 5.0
+prepare_s = 60.0
+op_s = 0.5
+shutdown_s = 5.0
+
+[capabilities]
+search = true
+symbols = true
+context = true
+dependencies = true
+references = true
+tests = true
+docs = true
+incremental = true

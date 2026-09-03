@@ -1,0 +1,50 @@
+id            = "httpx-chg-002"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "change_impact"
+difficulty    = "L4"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["decoders", "headers", "impact"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+You want to add support for a new content encoding. Beyond writing the decoder class,
+what else in the package changes as a consequence, and which outgoing header would
+silently change for every request?
+"""
+
+required_capabilities = ["search", "symbols", "references"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "add decoder SUPPORTED_DECODERS registry ACCEPT_ENCODING request header impact", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "what is the full checklist for teaching the library one more compression format", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "after adding a decompressor the server started sending a format the old client never asked for", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_decoders.py", "httpx/_client.py", "httpx/_models.py"]
+symbols       = ["SUPPORTED_DECODERS", "ACCEPT_ENCODING", "Response._get_content_decoder", "BaseClient.headers"]
+tests         = ["tests/test_decoders.py"]
+ranges        = [{ path = "httpx/_decoders.py", start = 381, end = 393 }, { path = "httpx/_client.py", start = 120, end = 122 }, { path = "httpx/_models.py", start = 699, end = 722 }]
+relationships = [["ACCEPT_ENCODING", "USES", "SUPPORTED_DECODERS"], ["Response._get_content_decoder", "USES", "SUPPORTED_DECODERS"]]
+justification = "Registering the class in SUPPORTED_DECODERS is the only wiring needed for decoding, because Response._get_content_decoder looks the header value up there, but the same dict is joined into ACCEPT_ENCODING at import time, so every outgoing request starts advertising the new format; tests/test_decoders.py is the coverage point."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

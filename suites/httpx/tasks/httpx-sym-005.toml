@@ -1,0 +1,49 @@
+id            = "httpx-sym-005"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "symbol_location"
+difficulty    = "L2"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["redirects", "security", "headers"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Which method removes credentials from a request when a redirect points at a different
+origin, and which two module-level predicates decide whether the hop counts as a
+different origin or as a plain HTTP-to-HTTPS upgrade?
+"""
+
+required_capabilities = ["search", "symbols", "tests"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "_redirect_headers strip Authorization same origin https upgrade", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "how does the client avoid leaking credentials when a response sends it elsewhere", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "my Authorization header disappears after the client follows a redirect to another host", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_client.py"]
+symbols       = ["BaseClient._redirect_headers", "_same_origin", "_is_https_redirect"]
+tests         = ["tests/client/test_headers.py", "tests/client/test_redirects.py"]
+ranges        = [{ path = "httpx/_client.py", start = 546, end = 571 }, { path = "httpx/_client.py", start = 83, end = 91 }, { path = "httpx/_client.py", start = 62, end = 74 }]
+justification = "_redirect_headers pops Authorization unless _same_origin holds, with an explicit exemption for the http->https upgrade detected by _is_https_redirect; the port defaulting inside those predicates is what makes the rule non-obvious."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

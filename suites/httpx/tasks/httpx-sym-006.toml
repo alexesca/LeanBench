@@ -1,0 +1,49 @@
+id            = "httpx-sym-006"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "symbol_location"
+difficulty    = "L2"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["exceptions", "context-manager"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Exceptions raised deep inside a transport still arrive with their .request attribute
+populated. Which helper attaches it, and name two call sites that wrap their I/O in that
+helper.
+"""
+
+required_capabilities = ["search", "symbols", "references"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "request_context contextmanager attach request to RequestError", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "how does an error raised while reading a body know which call produced it", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "exc.request works for errors from the network but raises RuntimeError on one I built by hand", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_exceptions.py", "httpx/_client.py", "httpx/_models.py"]
+symbols       = ["request_context", "Client._send_single_request", "Response.iter_raw"]
+ranges        = [{ path = "httpx/_exceptions.py", start = 364, end = 377 }, { path = "httpx/_client.py", start = 1001, end = 1034 }, { path = "httpx/_models.py", start = 935, end = 959 }]
+relationships = [["Client._send_single_request", "CALLS", "request_context"]]
+justification = "request_context is a contextmanager that re-raises RequestError with .request set; the client wraps the transport call in it and Response.iter_raw wraps body streaming in it, which is why the attribute survives both phases."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

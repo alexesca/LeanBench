@@ -1,0 +1,48 @@
+id            = "httpx-test-001"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "tests"
+difficulty    = "L3"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["redirects", "security", "coverage"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Which tests would start failing if the rule that removes credentials on a cross-origin
+redirect were deleted? Name the test modules and the specific behaviours they assert.
+"""
+
+required_capabilities = ["search", "tests", "references"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "tests cross domain redirect authorization header stripped same origin", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "which test cases cover dropping credentials when a response points at another host", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "if that header-scrubbing code were removed, what in the suite would go red", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_client.py"]
+symbols       = ["BaseClient._redirect_headers", "_same_origin", "_is_https_redirect"]
+tests         = ["tests/client/test_redirects.py", "tests/client/test_headers.py"]
+ranges        = [{ path = "httpx/_client.py", start = 546, end = 571 }]
+justification = "Two modules cover it from different angles: test_redirects.py exercises it end-to-end through a mock transport (cross domain with header, with auth, the https-upgrade exemption and the same-domain case), while test_headers.py calls _redirect_headers directly for the origin and https-upgrade predicates."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

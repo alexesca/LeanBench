@@ -1,0 +1,26 @@
+name        = "dev"
+version     = "1.0.0"
+description = """
+Fast inner-loop suite over the same pinned httpx checkout. Every task is local
+(L1), capped at 5 tool calls / 4k repository tokens / 8s wall clock, so the whole
+suite is meant to run in under ten seconds. Not a measurement suite: several of
+these tasks are deliberately grep-winnable and would be ceiling-flagged.
+"""
+
+repository = "httpx"
+commit     = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+
+required_capabilities = ["search", "symbols"]
+
+# Deliberately low: this suite exists for smoke-testing the harness, not for
+# discriminating between candidates.
+informative_task_rate_threshold = 0.0
+
+[scoring]
+version              = "v1"
+correctness          = 0.45
+context_efficiency   = 0.25
+retrieval_navigation = 0.10
+incremental          = 0.10
+cold_index           = 0.05
+footprint            = 0.05

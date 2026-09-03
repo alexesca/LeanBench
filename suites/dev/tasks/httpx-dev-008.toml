@@ -1,0 +1,47 @@
+id            = "httpx-dev-008"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "api_contract"
+difficulty    = "L1"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["models", "exceptions"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Which method turns an error status code into an exception, what does it raise, and what
+happens for a 3xx response?
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "raise_for_status HTTPStatusError is_success has_redirect_location message", limit = 5 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "how do I make an unsuccessful reply throw instead of being inspected", limit = 5 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "the error text mentions a redirect location for some replies but not others", limit = 5 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_models.py", "httpx/_exceptions.py"]
+symbols       = ["Response.raise_for_status", "HTTPStatusError"]
+ranges        = [{ path = "httpx/_models.py", start = 794, end = 829 }, { path = "httpx/_exceptions.py", start = 258, end = 268 }]
+justification = "Response.raise_for_status returns self for 2xx and otherwise raises HTTPStatusError; when has_redirect_location is true the message additionally quotes the Location header, and a response with no request attached raises RuntimeError."
+
+[limits]
+max_tool_calls        = 5
+max_repository_tokens = 4000
+wall_clock_s          = 8

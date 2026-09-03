@@ -1,0 +1,49 @@
+id            = "httpx-arch-005"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "architecture"
+difficulty    = "L4"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["urls", "parsing", "dependencies"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+httpx parses URLs without the standard library's parser and without the third-party
+package it once used. Which module replaced them, what reasons are recorded for that
+decision, and which public class is the face over it?
+"""
+
+required_capabilities = ["search", "symbols", "dependencies"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "custom urlparse RFC3986 module docstring replaced rfc3986 package", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "why does this project carry its own address parsing code instead of using the standard one", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "an address with a trailing question mark round-trips differently here than elsewhere", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_urlparse.py", "httpx/_urls.py"]
+symbols       = ["urlparse", "ParseResult", "URL", "URL.__init__"]
+ranges        = [{ path = "httpx/_urlparse.py", start = 1, end = 17 }, { path = "httpx/_urlparse.py", start = 213, end = 345 }, { path = "httpx/_urls.py", start = 77, end = 124 }]
+relationships = [["URL.__init__", "CALLS", "urlparse"]]
+justification = "The module docstring of _urlparse.py records the four reasons (validation, distinguishing empty from absent query, normalization, IDNA) and the replacement of the rfc3986 dependency; URL delegates to urlparse and stores the ParseResult."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

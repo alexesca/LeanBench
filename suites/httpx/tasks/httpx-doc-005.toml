@@ -1,0 +1,49 @@
+id            = "httpx-doc-005"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "documentation"
+difficulty    = "L2"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["exceptions", "docs", "taxonomy"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+The complete exception taxonomy is written out twice in this repository. Where are the
+two copies, and which base classes separate 'the call itself failed' from 'the server
+answered with an error status'?
+"""
+
+required_capabilities = ["search", "docs", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "exception hierarchy docstring docs/exceptions.md HTTPError RequestError", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "where can I see the full family tree of failures this library can raise", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "which single class should I catch to cover both connection problems and 4xx or 5xx replies", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_exceptions.py"]
+symbols       = ["HTTPError", "RequestError", "HTTPStatusError"]
+docs          = ["docs/exceptions.md"]
+ranges        = [{ path = "httpx/_exceptions.py", start = 1, end = 32 }, { path = "httpx/_exceptions.py", start = 74, end = 120 }, { path = "httpx/_exceptions.py", start = 258, end = 268 }]
+justification = "The tree is duplicated in the module docstring of httpx/_exceptions.py and in docs/exceptions.md; HTTPError is the common ancestor, RequestError covers transport and decoding and redirect-limit failures, while HTTPStatusError is the raise_for_ status branch."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

@@ -1,0 +1,48 @@
+id            = "httpx-test-005"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "tests"
+difficulty    = "L2"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["auth", "digest", "coverage"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Which tests cover nonce counting and challenge reuse for digest authentication, and
+whose output do they inspect?
+"""
+
+required_capabilities = ["search", "tests"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "digest auth nonce counting reuses challenge tests authorization header", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "where is it checked that a repeated challenge does not restart the counter", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "the counter field of the second credentials header should read 00000002; what asserts that", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_auth.py"]
+symbols       = ["DigestAuth.auth_flow", "DigestAuth._build_auth_header", "DigestAuth._parse_challenge"]
+tests         = ["tests/test_auth.py", "tests/client/test_auth.py"]
+ranges        = [{ path = "httpx/_auth.py", start = 193, end = 222 }, { path = "httpx/_auth.py", start = 255, end = 301 }]
+justification = "tests/test_auth.py covers the header construction directly and tests/client/test_auth.py covers challenge reuse and counter resetting through a client; both inspect the string produced by DigestAuth._build_auth_header, driven by the state kept in DigestAuth.auth_flow."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

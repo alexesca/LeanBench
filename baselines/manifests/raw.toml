@@ -1,0 +1,28 @@
+protocol_version = 1
+
+[candidate]
+name = "RawRepository"
+version = "0.1.0"
+
+[runtime]
+command = "python"
+args = ["-m", "leanbench_baselines.raw"]
+cwd = "../.."
+env = { PYTHONPATH = "baselines/src", PYTHONHASHSEED = "0" }
+
+[timeouts]
+startup_s = 10.0
+prepare_s = 120.0
+op_s = 60.0
+shutdown_s = 5.0
+
+# No index, no metadata: file listing, naive substring search, raw source reads.
+[capabilities]
+search = true
+symbols = true
+context = true
+dependencies = false
+references = true
+tests = false
+docs = false
+incremental = false

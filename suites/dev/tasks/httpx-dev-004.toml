@@ -1,0 +1,47 @@
+id            = "httpx-dev-004"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "api_contract"
+difficulty    = "L1"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["models", "json"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Where is the JSON decoding of a response body implemented, and what does it do with
+keyword arguments?
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "Response json method jsonlib loads content kwargs", limit = 5 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "how is a reply parsed into a Python object", limit = 5 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "can I pass options through to the parser when decoding a reply body", limit = 5 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_models.py"]
+symbols       = ["Response.json", "Response.content"]
+ranges        = [{ path = "httpx/_models.py", start = 831, end = 832 }, { path = "httpx/_models.py", start = 635, end = 639 }]
+justification = "Response.json is a one-line passthrough to json.loads over self.content, so any keyword arguments go straight to the standard library and reading it first requires the body to have been read."
+
+[limits]
+max_tool_calls        = 5
+max_repository_tokens = 4000
+wall_clock_s          = 8

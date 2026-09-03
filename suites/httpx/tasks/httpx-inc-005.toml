@@ -1,0 +1,48 @@
+id            = "httpx-inc-005"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "incremental"
+difficulty    = "L3"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["tests", "invalidation", "links"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+A new test has just been appended to the redirect test module. Which source symbols'
+test associations should be refreshed as a result?
+"""
+
+required_capabilities = ["tests", "incremental", "search"]
+allowed_tools         = ["candidate.search", "candidate.tests", "candidate.context", "repo.read_range"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "test to symbol links refresh redirect handling symbols covered", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "which pieces of implementation are exercised by that test module", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "I added a case and want to know which parts of the implementation it now covers", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_client.py", "httpx/_models.py"]
+symbols       = ["Client._send_handling_redirects", "BaseClient._build_redirect_request", "BaseClient._redirect_url", "BaseClient._redirect_headers", "Response.has_redirect_location"]
+tests         = ["tests/client/test_redirects.py"]
+ranges        = [{ path = "httpx/_client.py", start = 475, end = 582 }, { path = "httpx/_client.py", start = 964, end = 999 }]
+justification = "The redirect tests drive the loop and limit in Client._send_handling_redirects and the whole request-rebuilding chain on BaseClient (_build_redirect_request, _redirect_method, _redirect_url, _redirect_headers, _redirect_stream) plus Response.has_redirect_location, so those are the links to refresh."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

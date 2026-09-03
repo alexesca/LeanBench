@@ -1,0 +1,47 @@
+id            = "httpx-chg-005"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "change_impact"
+difficulty    = "L5"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["urls", "impact", "protocol"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+If the raw path property of the URL class stopped including the query string, what would
+break? List the consumers across the package.
+"""
+
+required_capabilities = ["search", "symbols", "references"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "URL raw_path query string consumers transport target asgi digest", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "who relies on the byte form of the path including everything after the question mark", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "after a change to the address class the request line reaching the server lost its parameters", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_urls.py", "httpx/_client.py", "httpx/_transports/default.py", "httpx/_transports/asgi.py", "httpx/_auth.py"]
+symbols       = ["URL.raw_path", "BaseClient._enforce_trailing_slash", "BaseClient._merge_url", "HTTPTransport.handle_request", "ASGITransport.handle_async_request", "DigestAuth._build_auth_header"]
+ranges        = [{ path = "httpx/_urls.py", start = 282, end = 297 }, { path = "httpx/_client.py", start = 234, end = 237 }, { path = "httpx/_client.py", start = 391, end = 411 }]
+justification = "raw_path concatenates path and query, and five places depend on that: the client uses it for base-url joining in _enforce_trailing_slash and _merge_url, both HTTP transports pass it as the httpcore target, the ASGI transport splits it back apart on the question mark, and digest auth signs it as the URI."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

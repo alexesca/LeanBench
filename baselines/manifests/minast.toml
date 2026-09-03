@@ -1,0 +1,29 @@
+protocol_version = 1
+
+[candidate]
+name = "MinimalAST"
+version = "0.1.0"
+
+[runtime]
+command = "python"
+args = ["-m", "leanbench_baselines.minast"]
+cwd = "../.."
+env = { PYTHONPATH = "baselines/src", PYTHONHASHSEED = "0" }
+
+[timeouts]
+startup_s = 15.0
+prepare_s = 300.0
+op_s = 30.0
+shutdown_s = 5.0
+
+# tree-sitter symbol table + import graph. No docs or test intelligence,
+# no relationship resolution beyond imports.
+[capabilities]
+search = true
+symbols = true
+context = true
+dependencies = true
+references = true
+tests = false
+docs = false
+incremental = true

@@ -1,0 +1,29 @@
+protocol_version = 1
+
+[candidate]
+name = "Ripgrep"
+version = "0.1.0"
+
+[runtime]
+command = "python"
+args = ["-m", "leanbench_baselines.ripgrep"]
+cwd = "../.."
+env = { PYTHONPATH = "baselines/src", PYTHONHASHSEED = "0" }
+
+[timeouts]
+startup_s = 10.0
+prepare_s = 60.0
+op_s = 60.0
+shutdown_s = 5.0
+
+# Real `rg` invocations only. No index, no parser: dependencies and incremental
+# are genuinely out of reach for this rung, so they are not declared.
+[capabilities]
+search = true
+symbols = true
+context = true
+dependencies = false
+references = true
+tests = true
+docs = true
+incremental = false

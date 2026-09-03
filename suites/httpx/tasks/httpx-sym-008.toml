@@ -1,0 +1,49 @@
+id            = "httpx-sym-008"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "symbol_location"
+difficulty    = "L2"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["proxies", "routing", "ordering"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+When several mounted patterns could match a URL, what makes the most specific one win?
+Identify the class, the member that defines the ordering, and the statement in the
+client constructor that applies that ordering.
+"""
+
+required_capabilities = ["search", "symbols", "tests"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "URLPattern priority __lt__ sorted mounts most specific match", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "how is the winning route chosen when more than one mounted rule matches an address", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "I registered both a catch-all and a domain specific handler and the wrong one is used", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_utils.py", "httpx/_client.py"]
+symbols       = ["URLPattern", "URLPattern.priority", "URLPattern.__lt__", "Client.__init__"]
+tests         = ["tests/test_utils.py", "tests/client/test_proxies.py"]
+ranges        = [{ path = "httpx/_utils.py", start = 205, end = 217 }, { path = "httpx/_utils.py", start = 222, end = 226 }, { path = "httpx/_client.py", start = 697, end = 716 }]
+justification = "URLPattern.priority returns a (port, host length, scheme length) tuple consumed by __lt__, and the client sorts self._mounts once in __init__, so lookup order in _transport_for_url is decided at construction time, not at request time."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

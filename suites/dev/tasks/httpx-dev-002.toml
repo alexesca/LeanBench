@@ -1,0 +1,47 @@
+id            = "httpx-dev-002"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "configuration"
+difficulty    = "L1"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["config", "defaults"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+What is the default maximum number of redirects, where is the constant defined, and
+which parameter picks it up?
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "DEFAULT_MAX_REDIRECTS constant value client parameter", limit = 5 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "how many hops will the client take before giving up, by default", limit = 5 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "I need to raise the number of allowed hops but do not know the current ceiling", limit = 5 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_config.py", "httpx/_client.py"]
+symbols       = ["DEFAULT_MAX_REDIRECTS", "BaseClient.__init__"]
+ranges        = [{ path = "httpx/_config.py", start = 248, end = 248 }, { path = "httpx/_client.py", start = 188, end = 221 }]
+justification = "DEFAULT_MAX_REDIRECTS = 20 is declared at the bottom of _config.py and is the default of the max_redirects parameter on BaseClient.__init__ and both concrete clients."
+
+[limits]
+max_tool_calls        = 5
+max_repository_tokens = 4000
+wall_clock_s          = 8

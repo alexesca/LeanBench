@@ -1,0 +1,49 @@
+id            = "httpx-arch-001"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "architecture"
+difficulty    = "L4"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["layering", "pooling", "httpcore"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Which part of httpx owns connection pooling? State precisely what httpx implements
+itself and what it delegates downwards, and show where the pool sizing configuration
+crosses that boundary.
+"""
+
+required_capabilities = ["search", "symbols", "docs"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "connection pool httpcore ConnectionPool max_connections keepalive limits", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "which layer actually keeps sockets alive and reuses them between calls", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "I need more simultaneous connections; which object holds that setting and who consumes it", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_transports/default.py", "httpx/_config.py"]
+symbols       = ["HTTPTransport.__init__", "AsyncHTTPTransport.__init__", "Limits", "DEFAULT_LIMITS"]
+docs          = ["docs/advanced/resource-limits.md"]
+ranges        = [{ path = "httpx/_transports/default.py", start = 135, end = 215 }, { path = "httpx/_config.py", start = 159, end = 198 }, { path = "httpx/_config.py", start = 247, end = 247 }]
+justification = "httpx implements no pooling at all: HTTPTransport and AsyncHTTPTransport construct an httpcore pool (or proxy pool) and forward Limits fields into it, so Limits is a pure configuration carrier across the httpx/httpcore seam."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

@@ -1,0 +1,49 @@
+id            = "httpx-api-003"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "api_contract"
+difficulty    = "L2"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["models", "requests", "headers"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+What is the behavioural difference between building a request with a content argument
+and building one with an explicit stream argument, in terms of which headers appear
+automatically, and which method performs that population?
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "Request __init__ content vs stream _prepare auto headers Host Content-Length", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "when I supply the body object myself, what does the library stop doing for me", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "a request I assembled by hand is missing the host header and the server rejects it", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_models.py"]
+symbols       = ["Request.__init__", "Request._prepare"]
+tests         = ["tests/models/test_requests.py"]
+ranges        = [{ path = "httpx/_models.py", start = 383, end = 439 }, { path = "httpx/_models.py", start = 441, end = 460 }]
+justification = "Passing content routes through encode_request and then _prepare, which sets default content headers plus an automatic Host and a zero Content-Length for POST/PUT/PATCH; passing stream skips all of that, as the in-source comment states."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

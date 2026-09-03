@@ -1,0 +1,49 @@
+id            = "httpx-doc-002"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "comments"
+difficulty    = "L2"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["redirects", "comments", "standards"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+A comment in the redirect code justifies deviating from the HTTP specification by
+pointing at an issue in a different project. Which method holds that comment, what
+deviation does it describe, and which issue is cited?
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "_redirect_method comment browsers despite standards 302 turn into GET", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "why would the verb of a follow-up call change even when the specification says keep it", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "my POST silently becomes a GET after the server sends a permanent move response", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_client.py"]
+symbols       = ["BaseClient._redirect_method"]
+tests         = ["tests/client/test_redirects.py"]
+ranges        = [{ path = "httpx/_client.py", start = 494, end = 515 }]
+justification = "_redirect_method carries the 'Do what the browsers do, despite standards' comment and the note that a POST answered with 301 becomes a GET because of requests issue 1704; the 303 case above it is the spec-conforming one."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

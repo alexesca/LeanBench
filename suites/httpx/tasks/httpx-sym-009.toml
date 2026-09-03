@@ -1,0 +1,47 @@
+id            = "httpx-sym-009"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "symbol_location"
+difficulty    = "L2"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["timing", "streams"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+response.elapsed is only valid once the response has been closed. Which classes set it,
+where does the clock start, and what happens if it is read too early?
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "BoundSyncStream BoundAsyncStream elapsed perf_counter close", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "how is the total duration of a call measured and when does the measurement stop", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "RuntimeError says the value may only be accessed after the response has been read or closed", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_client.py", "httpx/_models.py"]
+symbols       = ["BoundSyncStream.close", "BoundAsyncStream.aclose", "Client._send_single_request", "Response.elapsed"]
+ranges        = [{ path = "httpx/_client.py", start = 139, end = 159 }, { path = "httpx/_client.py", start = 162, end = 182 }, { path = "httpx/_client.py", start = 1001, end = 1034 }, { path = "httpx/_models.py", start = 578, end = 593 }]
+justification = "The start time is taken in _send_single_request and the wrapper stream classes record the delta when the body is closed, so the property on the model raises until that happens; the timer therefore covers body consumption, not just the round trip."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

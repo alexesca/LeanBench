@@ -1,0 +1,50 @@
+id            = "httpx-arch-006"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "architecture"
+difficulty    = "L4"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["timeouts", "extensions", "layering"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Trace how a timeout configured on a client reaches the networking layer. Which object
+normalizes it, what shape is it converted into, which field of the request carries it
+downwards, and what is that field called in the documentation?
+"""
+
+required_capabilities = ["search", "symbols", "docs"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "Timeout as_dict request extensions timeout build_request transport", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "how does a per-client duration limit end up affecting a socket operation", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "setting a limit on the client has no effect when I construct the request myself and send it", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_config.py", "httpx/_client.py", "httpx/_transports/default.py"]
+symbols       = ["Timeout", "Timeout.as_dict", "BaseClient.build_request", "BaseClient._set_timeout", "HTTPTransport.handle_request"]
+docs          = ["docs/advanced/extensions.md", "docs/advanced/timeouts.md"]
+ranges        = [{ path = "httpx/_config.py", start = 72, end = 156 }, { path = "httpx/_client.py", start = 340, end = 389 }, { path = "httpx/_client.py", start = 584, end = 591 }, { path = "httpx/_transports/default.py", start = 230, end = 259 }]
+relationships = [["BaseClient.build_request", "CALLS", "Timeout.as_dict"]]
+justification = "Timeout normalizes every input form, as_dict flattens it to connect/read/write/ pool, build_request (or _set_timeout for hand-built requests) stores that dict under the request's 'timeout' extension, and the transport forwards extensions verbatim, which is exactly the documented extension mechanism."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

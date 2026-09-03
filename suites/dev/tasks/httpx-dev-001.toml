@@ -1,0 +1,47 @@
+id            = "httpx-dev-001"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "symbol_location"
+difficulty    = "L1"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["redirects", "exceptions"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Which exception is raised when the redirect limit is exceeded, and in which method is
+the check written?
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "TooManyRedirects max_redirects exceeded raise", limit = 5 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "what error appears when a server keeps pointing the client somewhere else forever", limit = 5 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "Exceeded maximum allowed redirects", limit = 5 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_client.py", "httpx/_exceptions.py"]
+symbols       = ["Client._send_handling_redirects", "AsyncClient._send_handling_redirects", "TooManyRedirects"]
+ranges        = [{ path = "httpx/_client.py", start = 964, end = 999 }, { path = "httpx/_exceptions.py", start = 249, end = 252 }]
+justification = "The length check against max_redirects and the raise both sit at the top of the redirect loop, duplicated once per client flavour; the class itself is a RequestError subclass."
+
+[limits]
+max_tool_calls        = 5
+max_repository_tokens = 4000
+wall_clock_s          = 8

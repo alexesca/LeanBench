@@ -1,0 +1,29 @@
+protocol_version = 1
+
+[candidate]
+name = "CTags"
+version = "0.1.0"
+
+[runtime]
+command = "python"
+args = ["-m", "leanbench_baselines.ctags"]
+cwd = "../.."
+env = { PYTHONPATH = "baselines/src", PYTHONHASHSEED = "0" }
+
+[timeouts]
+startup_s = 10.0
+prepare_s = 120.0
+op_s = 30.0
+shutdown_s = 5.0
+
+# Tag table only: names, kinds, scopes, signatures, line spans.
+# No content search, no test linkage, no docs intelligence.
+[capabilities]
+search = true
+symbols = true
+context = true
+dependencies = false
+references = true
+tests = false
+docs = false
+incremental = true

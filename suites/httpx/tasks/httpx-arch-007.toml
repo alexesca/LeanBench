@@ -1,0 +1,48 @@
+id            = "httpx-arch-007"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "architecture"
+difficulty    = "L3"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["streams", "protocols", "typing"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+What are the two stream protocols that every request and response body must satisfy,
+where are they declared (note that they are not abstract base classes), and which
+concrete classes deliberately implement both at the same time?
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "SyncByteStream AsyncByteStream __iter__ __aiter__ implement both", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "what interface must a body object provide so it works in both blocking and awaiting code", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "RuntimeError complains I attempted to send an async request with a blocking client", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_types.py", "httpx/_content.py", "httpx/_multipart.py"]
+symbols       = ["SyncByteStream", "AsyncByteStream", "ByteStream", "UnattachedStream", "MultipartStream"]
+ranges        = [{ path = "httpx/_types.py", start = 92, end = 114 }, { path = "httpx/_content.py", start = 31, end = 39 }, { path = "httpx/_content.py", start = 92, end = 104 }, { path = "httpx/_multipart.py", start = 224, end = 242 }]
+justification = "SyncByteStream and AsyncByteStream are plain classes in _types.py raising NotImplementedError, and ByteStream, UnattachedStream and MultipartStream subclass both so the same body object can be used by either client; the client's isinstance checks are what turn the wrong choice into a RuntimeError."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

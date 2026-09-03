@@ -1,0 +1,35 @@
+name        = "httpx"
+version     = "1.0.0"
+description = """
+Repository-intelligence tasks over encode/httpx at a pinned commit. The suite is
+weighted towards questions whose answers require relating symbols across files,
+reading contracts, and traversing test-to-target links, rather than locating a
+literal string.
+"""
+
+repository = "httpx"
+commit     = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+
+required_capabilities = [
+    "search",
+    "symbols",
+    "context",
+    "dependencies",
+    "references",
+    "tests",
+    "docs",
+    "incremental",
+]
+
+# A task is informative iff it carries none of the ceiling/floor/unstable/
+# stale_gold flags (TASKS.md section 5). The suite gate is reported in every run.
+informative_task_rate_threshold = 0.60
+
+[scoring]
+version              = "v1"
+correctness          = 0.45
+context_efficiency   = 0.25
+retrieval_navigation = 0.10
+incremental          = 0.10
+cold_index           = 0.05
+footprint            = 0.05

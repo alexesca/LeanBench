@@ -1,0 +1,47 @@
+id            = "httpx-inc-002"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "incremental"
+difficulty    = "L2"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["transports", "invalidation", "subclasses"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+A new method has just been added to the synchronous transport base class. Which files
+define classes that inherit from it and must therefore be re-examined?
+"""
+
+required_capabilities = ["references", "incremental", "search"]
+allowed_tools         = ["candidate.search", "candidate.references", "candidate.context", "repo.read_range"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "subclasses of BaseTransport files to reparse default wsgi mock", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "which request-handling classes derive from the blocking base and would gain the member", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "I added a hook to the base class and need to know which handlers might need to override it", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_transports/base.py", "httpx/_transports/default.py", "httpx/_transports/wsgi.py", "httpx/_transports/mock.py", "httpx/_transports/asgi.py"]
+symbols       = ["BaseTransport", "HTTPTransport", "WSGITransport", "MockTransport", "ASGITransport"]
+relationships = [["HTTPTransport", "INHERITS", "BaseTransport"], ["WSGITransport", "INHERITS", "BaseTransport"], ["MockTransport", "INHERITS", "BaseTransport"]]
+justification = "BaseTransport is subclassed by HTTPTransport (default.py), WSGITransport (wsgi.py) and MockTransport (mock.py); MockTransport also subclasses the async base and ASGITransport only the async one, so asgi.py is affected only if the async base changed too."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

@@ -1,0 +1,51 @@
+id            = "httpx-chg-001"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "change_impact"
+difficulty    = "L4"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["transports", "refactor", "impact"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Suppose the method that a transport must implement were renamed. Enumerate every in-
+repository implementation and call site that would have to change, including
+documentation.
+"""
+
+required_capabilities = ["search", "symbols", "references", "docs"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "handle_request rename implementations HTTPTransport WSGITransport MockTransport call site", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "if the single method every request handler must provide were given another name, what breaks", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "I renamed the method on my own subclass and nothing is invoked; what else refers to the old name", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_transports/base.py", "httpx/_transports/default.py", "httpx/_transports/wsgi.py", "httpx/_transports/mock.py", "httpx/_client.py"]
+symbols       = ["BaseTransport.handle_request", "HTTPTransport.handle_request", "WSGITransport.handle_request", "MockTransport.handle_request", "Client._send_single_request"]
+tests         = ["tests/client/test_client.py"]
+docs          = ["docs/advanced/transports.md"]
+ranges        = [{ path = "httpx/_transports/base.py", start = 26, end = 59 }, { path = "httpx/_client.py", start = 1001, end = 1034 }]
+relationships = [["Client._send_single_request", "CALLS", "BaseTransport.handle_request"]]
+justification = "The synchronous name is declared on BaseTransport and implemented by HTTPTransport, WSGITransport and MockTransport; the only in-package caller is Client._send_single_request, and docs/advanced/transports.md documents the contract and shows three custom implementations that would also need editing."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

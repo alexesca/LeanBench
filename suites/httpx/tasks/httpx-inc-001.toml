@@ -1,0 +1,48 @@
+id            = "httpx-inc-001"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "incremental"
+difficulty    = "L3"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["dependencies", "invalidation"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+The shared configuration module has just been edited to change a default value. Which
+other modules in the package import from it and therefore hold facts that are now
+potentially stale?
+"""
+
+required_capabilities = ["dependencies", "incremental", "search"]
+allowed_tools         = ["candidate.search", "candidate.dependencies", "candidate.context", "repo.read_range"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "imported_by httpx/_config.py dependents DEFAULT_TIMEOUT_CONFIG DEFAULT_LIMITS", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "which files depend on the module that holds the shared default settings", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "I touched one constant and want the blast radius without re-reading the whole package", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_config.py", "httpx/_client.py", "httpx/_api.py", "httpx/_transports/default.py", "httpx/_types.py", "httpx/__init__.py"]
+symbols       = ["DEFAULT_TIMEOUT_CONFIG", "DEFAULT_LIMITS", "DEFAULT_MAX_REDIRECTS"]
+ranges        = [{ path = "httpx/_config.py", start = 246, end = 248 }]
+justification = "_client.py, _api.py and _transports/default.py import concrete values from _config.py, and _types.py imports Proxy/Timeout under TYPE_CHECKING only; the package __init__ re-exports it. Nothing outside those files needs re-analysis."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

@@ -1,0 +1,48 @@
+id            = "httpx-doc-003"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "comments"
+difficulty    = "L1"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["content", "comments", "edge-cases"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+One branch of the request-body encoder carries a comment admitting to an oddly specific
+type check that exists only to catch a mistake users make. Which function is it, which
+type is excluded, and which issue number is cited?
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "encode_content comment oddly specific not isinstance dict issue 2491", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "why is one particular builtin container excluded from the iterable body branch", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "passing a mapping where a byte iterator was expected used to produce a nonsense chunked body", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_content.py"]
+symbols       = ["encode_content"]
+ranges        = [{ path = "httpx/_content.py", start = 107, end = 133 }]
+justification = "encode_content excludes dict from the Iterable branch, with the comment explaining that dict happens to be iterable and citing issue #2491; without it a mapping would be streamed as its keys."
+
+[limits]
+max_tool_calls        = 12
+max_repository_tokens = 15000
+wall_clock_s          = 120

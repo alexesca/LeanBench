@@ -1,0 +1,48 @@
+id            = "httpx-api-005"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "api_contract"
+difficulty    = "L2"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["client", "defaults", "sentinels"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Several request-level parameters use a dedicated sentinel object rather than None. Which
+sentinel is it, why would None not work, and which methods resolve it into a real
+timeout value?
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "UseClientDefault USE_CLIENT_DEFAULT sentinel unset state timeout resolution", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "how does the library tell apart an omitted argument from one explicitly disabled", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "passing nothing for the duration limit uses the client setting but passing None removes it", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_client.py"]
+symbols       = ["UseClientDefault", "USE_CLIENT_DEFAULT", "BaseClient.build_request", "BaseClient._set_timeout", "Client.send"]
+ranges        = [{ path = "httpx/_client.py", start = 94, end = 114 }, { path = "httpx/_client.py", start = 340, end = 389 }, { path = "httpx/_client.py", start = 584, end = 591 }]
+justification = "UseClientDefault/USE_CLIENT_DEFAULT exist because None already means 'explicitly disabled'; build_request and _set_timeout are where the sentinel collapses into the client's Timeout, and send does the same for follow_redirects."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

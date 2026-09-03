@@ -1,0 +1,49 @@
+id            = "httpx-sym-007"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "symbol_location"
+difficulty    = "L2"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["transports", "exceptions", "httpcore"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+The lower-level networking library's exceptions never reach users. Which mapping table
+converts them, at what moment is that table populated, and which context manager
+performs the conversion including its rule for picking the most specific class?
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "HTTPCORE_EXC_MAP map_httpcore_exceptions lazy import mapping", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "where are the underlying network library's error types translated into this package's own", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "a read timeout surfaces as httpx.ReadTimeout rather than the dependency's own timeout class", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_transports/default.py"]
+symbols       = ["HTTPCORE_EXC_MAP", "_load_httpcore_exceptions", "map_httpcore_exceptions"]
+tests         = ["tests/test_exceptions.py"]
+ranges        = [{ path = "httpx/_transports/default.py", start = 71, end = 71 }, { path = "httpx/_transports/default.py", start = 74, end = 92 }, { path = "httpx/_transports/default.py", start = 95, end = 118 }]
+justification = "HTTPCORE_EXC_MAP starts empty and is filled by _load_httpcore_exceptions the first time map_httpcore_exceptions runs, keeping httpcore out of import time; the issubclass check inside the context manager selects the most specific mapping."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

@@ -1,0 +1,47 @@
+id            = "httpx-inc-004"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "incremental"
+difficulty    = "L2"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["decoders", "invalidation"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Only the content-encoding module has changed. Which two modules consume it, and which
+exported facts do they each depend on?
+"""
+
+required_capabilities = ["dependencies", "incremental", "search"]
+allowed_tools         = ["candidate.search", "candidate.dependencies", "candidate.context", "repo.read_range"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "who imports _decoders SUPPORTED_DECODERS ByteChunker TextDecoder consumers", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "which files would have to be re-analysed after editing the decompression code", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "a change in one module altered both response bodies and outgoing headers", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_decoders.py", "httpx/_models.py", "httpx/_client.py"]
+symbols       = ["SUPPORTED_DECODERS", "Response._get_content_decoder", "ACCEPT_ENCODING"]
+ranges        = [{ path = "httpx/_decoders.py", start = 381, end = 393 }, { path = "httpx/_models.py", start = 699, end = 722 }, { path = "httpx/_client.py", start = 120, end = 122 }]
+justification = "Exactly two modules import _decoders: _models.py takes the registry plus the chunker and text/line decoders for the response body pipeline, and _client.py takes only SUPPORTED_DECODERS, from which ACCEPT_ENCODING is derived."
+
+[limits]
+max_tool_calls        = 12
+max_repository_tokens = 15000
+wall_clock_s          = 120

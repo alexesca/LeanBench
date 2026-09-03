@@ -1,0 +1,48 @@
+id            = "httpx-beh-002"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "behavior"
+difficulty    = "L3"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["streaming", "exceptions"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+What happens if you access the decoded text of a streamed response before reading it,
+and what happens if you iterate the raw stream twice? Name the exception classes and
+where each is raised.
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "ResponseNotRead StreamConsumed StreamClosed iter_raw content property", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "which mistakes when consuming a streaming body are turned into errors rather than empty data", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "an error says I attempted to access streaming content without having called read", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_models.py", "httpx/_exceptions.py"]
+symbols       = ["Response.content", "Response.iter_raw", "ResponseNotRead", "StreamConsumed", "StreamClosed", "StreamError"]
+ranges        = [{ path = "httpx/_models.py", start = 635, end = 650 }, { path = "httpx/_models.py", start = 935, end = 959 }, { path = "httpx/_exceptions.py", start = 297, end = 348 }]
+justification = "Response.content raises ResponseNotRead when _content is absent, which .text hits first; iter_raw raises StreamConsumed on a second pass and StreamClosed once the response has been closed. All three derive from StreamError, which is a RuntimeError and deliberately outside the HTTPError tree."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

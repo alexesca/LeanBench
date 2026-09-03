@@ -1,0 +1,47 @@
+id            = "httpx-dev-003"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "symbol_location"
+difficulty    = "L1"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["auth"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Which class implements HTTP Basic authentication, and which method actually attaches the
+header to the outgoing request?
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "BasicAuth auth_flow Authorization header", limit = 5 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "which class handles the simplest username and password scheme", limit = 5 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "I passed a two-item tuple of credentials and want to see what it becomes", limit = 5 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_auth.py", "httpx/_client.py"]
+symbols       = ["BasicAuth", "BasicAuth.auth_flow", "BaseClient._build_auth"]
+ranges        = [{ path = "httpx/_auth.py", start = 126, end = 142 }, { path = "httpx/_client.py", start = 445, end = 455 }]
+justification = "BasicAuth builds the header once in its constructor and sets it inside auth_flow, which is also the object a plain (username, password) tuple is converted into by BaseClient._build_auth."
+
+[limits]
+max_tool_calls        = 5
+max_repository_tokens = 4000
+wall_clock_s          = 8

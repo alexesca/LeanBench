@@ -1,0 +1,49 @@
+id            = "httpx-arch-008"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "architecture"
+difficulty    = "L5"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["public-api", "conventions", "tests"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+How is the public API surface of the package defined and kept honest? Describe the per-
+module convention, the aggregation point, the runtime step that rewrites the module
+attribute of every exported object, and the test that enforces the invariant.
+"""
+
+required_capabilities = ["search", "symbols", "tests"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "__all__ star imports __module__ rewrite exported members test", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "what stops an internal helper from accidentally becoming part of the supported surface", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "my new class imports fine but a check comparing a list against its sorted copy fails", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/__init__.py", "httpx/_transports/__init__.py", "httpx/_exceptions.py"]
+symbols       = ["__all__"]
+tests         = ["tests/test_exported_members.py"]
+ranges        = [{ path = "httpx/__init__.py", start = 29, end = 106 }, { path = "httpx/_transports/__init__.py", start = 7, end = 15 }, { path = "httpx/_exceptions.py", start = 42, end = 71 }]
+justification = "Every private module declares __all__, the package __init__ star-imports them and restates a single sorted __all__, then loops over it setting __module__ to 'httpx'; test_all_imports_are_exported asserts that list equals the sorted public names."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

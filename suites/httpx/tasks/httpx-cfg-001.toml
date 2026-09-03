@@ -1,0 +1,49 @@
+id            = "httpx-cfg-001"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "configuration"
+difficulty    = "L4"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["environment", "proxies", "tls"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Which environment variables change this library's behaviour, where is each of them read,
+and what single client argument disables all of that?
+"""
+
+required_capabilities = ["search", "symbols", "docs"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "environment variables HTTP_PROXY NO_PROXY SSL_CERT_FILE SSL_CERT_DIR trust_env", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "what ambient settings can silently change how calls are routed or verified", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "requests go through a company proxy in production but not from the test runner", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_utils.py", "httpx/_config.py", "httpx/_client.py"]
+symbols       = ["get_environment_proxies", "create_ssl_context", "BaseClient._get_proxy_map", "BaseClient.trust_env"]
+tests         = ["tests/client/test_proxies.py"]
+docs          = ["docs/environment_variables.md"]
+ranges        = [{ path = "httpx/_utils.py", start = 30, end = 76 }, { path = "httpx/_config.py", start = 23, end = 69 }, { path = "httpx/_client.py", start = 239, end = 251 }]
+justification = "Proxy variables are read by get_environment_proxies (via urllib getproxies) and turned into mounts by _get_proxy_map; the two certificate-location variables are read in create_ssl_context. Both paths are gated on trust_env, and for proxies also on no explicit transport being supplied."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

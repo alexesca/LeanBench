@@ -1,0 +1,49 @@
+id            = "httpx-arch-003"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "architecture"
+difficulty    = "L4"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["async", "duplication", "layering"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+httpx offers a synchronous and an asynchronous client with nearly identical surfaces.
+Which class holds the logic shared by both, which behaviours are deliberately duplicated
+between the two concrete clients, and why can the shared class not perform the send
+itself?
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "BaseClient Client AsyncClient shared request building duplicated send", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "how is the code organised so the blocking and non-blocking variants stay in step", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "two nearly identical several-hundred-line classes sit in the same module; is that intentional", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_client.py"]
+symbols       = ["BaseClient", "Client", "AsyncClient", "BaseClient._build_redirect_request", "Client._send_handling_redirects", "AsyncClient._send_handling_redirects"]
+ranges        = [{ path = "httpx/_client.py", start = 188, end = 591 }, { path = "httpx/_client.py", start = 964, end = 999 }, { path = "httpx/_client.py", start = 1679, end = 1715 }]
+justification = "BaseClient owns everything I/O-free (configuration merging, request building, auth selection, the whole redirect-request construction chain); only the loops that actually await or block are duplicated in Client and AsyncClient, which is why the redirect policy is written once and the send path twice."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

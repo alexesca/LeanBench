@@ -1,0 +1,48 @@
+id            = "httpx-sym-002"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "symbol_location"
+difficulty    = "L1"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["auth", "duplication"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Two different authentication classes each build an HTTP Basic Authorization header value
+using their own copy of the same helper method. Name both classes and the duplicated
+method.
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "BasicAuth NetRCAuth _build_auth_header b64encode userpass", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "which authentication classes turn a username and password into a header value", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "the same base64 credential encoding code appears to be written twice in this package", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_auth.py"]
+symbols       = ["BasicAuth._build_auth_header", "NetRCAuth._build_auth_header"]
+ranges        = [{ path = "httpx/_auth.py", start = 126, end = 142 }, { path = "httpx/_auth.py", start = 145, end = 172 }]
+justification = "BasicAuth and NetRCAuth each define their own _build_auth_header with identical bodies; DigestAuth's method of the same name is unrelated, so the answer requires reading the classes rather than matching the name."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

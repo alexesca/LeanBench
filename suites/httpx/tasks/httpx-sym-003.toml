@@ -1,0 +1,49 @@
+id            = "httpx-sym-003"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "symbol_location"
+difficulty    = "L3"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["headers", "decoders", "defaults"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+What determines the exact value of the Accept-Encoding header that a default client
+sends? Identify the constant, the data structure it is derived from, and the property
+that installs the default headers onto every client.
+"""
+
+required_capabilities = ["search", "symbols", "references"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "ACCEPT_ENCODING SUPPORTED_DECODERS default client headers property", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "how does the client work out which compression formats it advertises to servers", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "installing an optional compression package silently changed the request headers", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_client.py", "httpx/_decoders.py"]
+symbols       = ["ACCEPT_ENCODING", "SUPPORTED_DECODERS", "BaseClient.headers"]
+ranges        = [{ path = "httpx/_client.py", start = 120, end = 122 }, { path = "httpx/_client.py", start = 305, end = 316 }, { path = "httpx/_decoders.py", start = 381, end = 393 }]
+relationships = [["ACCEPT_ENCODING", "USES", "SUPPORTED_DECODERS"]]
+justification = "ACCEPT_ENCODING is computed by joining the keys of SUPPORTED_DECODERS (minus identity), and SUPPORTED_DECODERS itself is pruned at import time when brotli or zstandard are absent; the headers setter is where the value reaches a client."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

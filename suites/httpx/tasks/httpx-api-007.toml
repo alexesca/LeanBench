@@ -1,0 +1,49 @@
+id            = "httpx-api-007"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "api_contract"
+difficulty    = "L2"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["multipart", "uploads", "types"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Which tuple shapes are accepted as a value in the file-upload mapping, how is the
+content type chosen when it is not supplied, and which two kinds of file object are
+rejected outright?
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "FileField tuple filename fileobj content_type headers guess_content_type", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "what forms may an upload entry take and how is its media type decided", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "TypeError says uploads require a binary buffer and not a text one", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_multipart.py", "httpx/_types.py"]
+symbols       = ["FileField.__init__", "_guess_content_type", "FileTypes"]
+tests         = ["tests/test_multipart.py"]
+ranges        = [{ path = "httpx/_multipart.py", start = 122, end = 169 }, { path = "httpx/_multipart.py", start = 45, end = 53 }, { path = "httpx/_types.py", start = 75, end = 85 }]
+justification = "FileField.__init__ unpacks 2-, 3- and 4-element tuples (or a bare file object, taking the name attribute), falls back to _guess_content_type and finally application/octet-stream, and rejects io.StringIO and any io.TextIOBase."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

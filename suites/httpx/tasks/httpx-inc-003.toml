@@ -1,0 +1,48 @@
+id            = "httpx-inc-003"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "incremental"
+difficulty    = "L3"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["models", "invalidation", "imports"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+The request model class in the models module is about to be renamed. Which modules
+import it directly and must be re-parsed, and which of those imports exist only for type
+checking?
+"""
+
+required_capabilities = ["dependencies", "references", "incremental", "search"]
+allowed_tools         = ["candidate.search", "candidate.dependencies", "candidate.references", "repo.read_range"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "modules importing Request from _models reparse type checking only", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "who refers to the outgoing-call object by name at import time", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "renaming one class produced import errors in files I did not expect to be involved", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_models.py", "httpx/_client.py", "httpx/_auth.py", "httpx/_transports/base.py", "httpx/_transports/default.py", "httpx/_transports/asgi.py", "httpx/_transports/wsgi.py", "httpx/_transports/mock.py", "httpx/_exceptions.py", "httpx/_types.py"]
+symbols       = ["Request", "Response"]
+ranges        = [{ path = "httpx/_models.py", start = 382, end = 512 }]
+justification = "Runtime importers are _client.py, _auth.py and all five transport modules (base, default, asgi, wsgi, mock); _exceptions.py and _types.py import it only under TYPE_CHECKING, so they need re-parsing but cannot fail at runtime."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

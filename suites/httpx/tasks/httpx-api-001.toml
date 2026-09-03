@@ -1,0 +1,51 @@
+id            = "httpx-api-001"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "api_contract"
+difficulty    = "L3"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["auth", "extension-points", "generators"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+You are implementing a custom authentication scheme. Which method do you override in the
+ordinary case, which two class attributes change what the client hands you before your
+code runs, and under what circumstances must you override the synchronous or
+asynchronous variants instead?
+"""
+
+required_capabilities = ["search", "symbols", "docs"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "Auth subclass auth_flow requires_request_body requires_response_body sync_auth_flow", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "what do I implement so my credentials logic can inspect a challenge and retry once", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "my credentials class never sees the response body so I cannot compute the challenge answer", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_auth.py"]
+symbols       = ["Auth", "Auth.auth_flow", "Auth.sync_auth_flow", "Auth.async_auth_flow"]
+tests         = ["tests/client/test_auth.py"]
+docs          = ["docs/advanced/authentication.md"]
+ranges        = [{ path = "httpx/_auth.py", start = 22, end = 110 }]
+justification = "Auth.auth_flow is the generator you normally override; the two boolean class attributes make the client read the request or response body before resuming you; sync_auth_flow/async_auth_flow must be overridden instead when the scheme performs I/O or uses locks, because they are what the two clients actually drive."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

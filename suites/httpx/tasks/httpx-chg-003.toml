@@ -1,0 +1,49 @@
+id            = "httpx-chg-003"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "change_impact"
+difficulty    = "L5"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["public-api", "conventions", "impact"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+What is the complete checklist for exposing a new public name from the package so that
+continuous integration stays green?
+"""
+
+required_capabilities = ["search", "tests", "docs"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "export new public name __all__ package init sorted casefold exported members test", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "what has to be updated when something internal should become part of the supported surface", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "the import works but a test comparing a list of names with its sorted copy fails", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/__init__.py"]
+symbols       = ["__all__"]
+tests         = ["tests/test_exported_members.py"]
+docs          = ["docs/api.md"]
+ranges        = [{ path = "httpx/__init__.py", start = 29, end = 106 }]
+justification = "Add the name to the defining module's __all__, add it to the package __init__ __all__ in casefold-sorted position (the loop there also rewrites __module__), and document it in docs/api.md; test_all_imports_are_exported enforces the sorted-list invariant."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

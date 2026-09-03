@@ -1,0 +1,41 @@
+# LeanBench corpus manifest.
+#
+# Every task's `repository` and `commit` must resolve here (TASKS.md §1). Repositories
+# are pinned by commit sha: a benchmark whose corpus moves is not a benchmark.
+#
+# `root` is relative to the LeanBench repository root.
+# `role` is one of:
+#   fixture   - synthetic, ships in this repository, used for self-tests and gates
+#   primary   - the real-world repository the headline suites are authored against
+#   holdout   - reserved for contamination control; not used by released suites yet
+
+schema_version = 1
+
+[[repositories]]
+id = "mini-repo"
+name = "shopcart"
+remote = ""
+commit = "fixture"
+language = "python"
+role = "fixture"
+license = "Apache-2.0"
+root = "leanbench/fixtures/mini-repo"
+description = """A synthetic but genuinely structured package: value objects, a cart, a
+pricing engine, coupons, a stock ledger, a payment gateway and a checkout service, with
+tests that target specific symbols and docs that describe the rules. Small enough to
+index in milliseconds, structured enough that a semantic index beats plain text search."""
+files_python = 8
+notes = "Vendored in-tree; `commit` is the literal string 'fixture' because it moves with this repository."
+
+[[repositories]]
+id = "httpx"
+name = "encode/httpx"
+remote = "https://github.com/encode/httpx.git"
+commit = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+language = "python"
+role = "primary"
+license = "BSD-3-Clause"
+root = "corpus/httpx"
+description = "A broadly used async-capable HTTP client. Rich in cross-file behaviour (redirects, auth, transports, pools) that exercises L2-L5 tasks."
+files_python = 60
+notes = "Checked out by LeanBench; candidates MUST NOT run git (PROTOCOL.md §4.1)."

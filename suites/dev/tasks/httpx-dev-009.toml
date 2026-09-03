@@ -1,0 +1,47 @@
+id            = "httpx-dev-009"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "symbol_location"
+difficulty    = "L1"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["client", "urls"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Which method combines the client's base address with a relative one, and what
+normalization guarantees that the join behaves predictably?
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "_merge_url base_url relative raw_path join trailing slash", limit = 5 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "how is a short path turned into the full address that gets sent", limit = 5 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "a leading slash in my path wiped out the prefix configured on the client", limit = 5 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_client.py"]
+symbols       = ["BaseClient._merge_url", "BaseClient._enforce_trailing_slash"]
+ranges        = [{ path = "httpx/_client.py", start = 391, end = 411 }, { path = "httpx/_client.py", start = 234, end = 237 }]
+justification = "_merge_url appends to base_url after stripping a leading slash, which only works because _enforce_trailing_slash rewrote base_url to end in one at construction time."
+
+[limits]
+max_tool_calls        = 5
+max_repository_tokens = 4000
+wall_clock_s          = 8

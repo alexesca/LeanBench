@@ -1,0 +1,46 @@
+id            = "httpx-dev-007"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "configuration"
+difficulty    = "L1"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["config", "pooling"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+What are the default connection pool limits and where is that default constructed?
+"""
+
+required_capabilities = ["search", "symbols"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "DEFAULT_LIMITS Limits max_connections max_keepalive_connections", limit = 5 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "how many parallel connections does a fresh client allow", limit = 5 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "throughput plateaus at a fixed number of concurrent calls", limit = 5 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_config.py"]
+symbols       = ["DEFAULT_LIMITS", "Limits"]
+ranges        = [{ path = "httpx/_config.py", start = 159, end = 198 }, { path = "httpx/_config.py", start = 247, end = 247 }]
+justification = "DEFAULT_LIMITS = Limits(max_connections=100, max_keepalive_connections=20) is built at the bottom of _config.py; keepalive_expiry defaults to 5.0 inside the Limits constructor itself."
+
+[limits]
+max_tool_calls        = 5
+max_repository_tokens = 4000
+wall_clock_s          = 8

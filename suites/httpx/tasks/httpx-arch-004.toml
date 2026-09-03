@@ -1,0 +1,51 @@
+id            = "httpx-arch-004"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "architecture"
+difficulty    = "L4"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["auth", "redirects", "control-flow"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Authentication retries and redirect following are both loops in the client. Which loop
+is nested inside the other, what does that ordering mean for a redirect that happens
+partway through a multi-leg authentication exchange, and what protocol drives the
+authentication side?
+"""
+
+required_capabilities = ["search", "symbols", "tests"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "_send_handling_auth wraps _send_handling_redirects auth_flow generator history", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "when a call needs both a credentials challenge and a hop elsewhere, which is resolved first", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "the challenge-response retry seems to restart the whole chain and my history list looks wrong", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_client.py", "httpx/_auth.py"]
+symbols       = ["Client.send", "Client._send_handling_auth", "Client._send_handling_redirects", "Auth.sync_auth_flow", "Auth.auth_flow"]
+tests         = ["tests/client/test_auth.py"]
+ranges        = [{ path = "httpx/_client.py", start = 879, end = 928 }, { path = "httpx/_client.py", start = 930, end = 962 }, { path = "httpx/_client.py", start = 964, end = 999 }, { path = "httpx/_auth.py", start = 38, end = 110 }]
+relationships = [["Client.send", "CALLS", "Client._send_handling_auth"], ["Client._send_handling_auth", "CALLS", "Client._send_handling_redirects"]]
+justification = "send calls _send_handling_auth, which drives the auth generator and calls _send_handling_redirects for every leg, so redirects are fully resolved inside each authentication leg and the redirect counter is shared through the history list."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

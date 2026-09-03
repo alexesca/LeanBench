@@ -1,0 +1,49 @@
+id            = "httpx-doc-001"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "documentation"
+difficulty    = "L2"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["redirects", "docs", "defaults"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+This library deliberately differs from the older requests library over redirect
+following. Which documentation pages state that and give the rationale, and which
+parameter default in the source implements it?
+"""
+
+required_capabilities = ["search", "docs"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "compatibility guide redirects not followed by default follow_redirects", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "why does a call return the intermediate response instead of the final page", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "the same code that worked with another client library now returns a 302 body", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_client.py"]
+symbols       = ["BaseClient.__init__", "Client.send"]
+docs          = ["docs/compatibility.md", "docs/quickstart.md"]
+ranges        = [{ path = "httpx/_client.py", start = 188, end = 221 }, { path = "httpx/_client.py", start = 879, end = 928 }]
+justification = "docs/compatibility.md opens with the Redirects section giving the rationale (auto following masks unnecessary network calls) and docs/quickstart.md documents the opt-in; the implementation is simply follow_redirects=False in BaseClient.__init__, threaded through Client.send."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

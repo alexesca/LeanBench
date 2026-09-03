@@ -1,0 +1,50 @@
+id            = "httpx-arch-002"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "architecture"
+difficulty    = "L4"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["transports", "extensibility", "contract"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+What is the minimum contract a custom transport must satisfy to be usable by Client and
+by AsyncClient, including lifecycle methods, and which client method invokes it?
+"""
+
+required_capabilities = ["search", "symbols", "docs"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "BaseTransport handle_request AsyncBaseTransport handle_async_request close aclose", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "what do I have to implement to plug my own request handling into this library", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "my own class was accepted by the constructor but calls fail with NotImplementedError", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_transports/base.py", "httpx/_client.py"]
+symbols       = ["BaseTransport", "BaseTransport.handle_request", "BaseTransport.close", "AsyncBaseTransport", "AsyncBaseTransport.handle_async_request", "AsyncBaseTransport.aclose", "Client._send_single_request"]
+tests         = ["tests/client/test_client.py"]
+docs          = ["docs/advanced/transports.md"]
+ranges        = [{ path = "httpx/_transports/base.py", start = 14, end = 62 }, { path = "httpx/_transports/base.py", start = 65, end = 86 }, { path = "httpx/_client.py", start = 1001, end = 1034 }]
+relationships = [["Client._send_single_request", "CALLS", "BaseTransport.handle_request"]]
+justification = "The contract is the two base classes: a single handle_request (or handle_async_request) taking a Request and returning a Response, plus optional close/aclose and the context-manager methods; the client calls it from _send_single_request after choosing a transport for the URL."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180

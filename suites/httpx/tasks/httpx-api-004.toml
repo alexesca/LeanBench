@@ -1,0 +1,50 @@
+id            = "httpx-api-004"
+version       = 1
+repository    = "httpx"
+commit        = "b5addb64f0161ff6bfe94c124ef76f6a1fba5254"
+category      = "api_contract"
+difficulty    = "L3"
+authored_by   = "claude-opus-5"
+reviewed_by   = ""
+authored_at   = "2026-09-02"
+tags          = ["compat", "deprecation", "content"]
+
+# --- Agent Track ---------------------------------------------------------
+prompt = """
+Passing raw bytes as the form-data argument is still accepted but deprecated. Which
+function detects that case, what does it do with the value instead, what warning class
+is emitted, and which test module asserts the warning?
+"""
+
+required_capabilities = ["search", "symbols", "tests"]
+allowed_tools         = ["candidate.search", "candidate.context", "repo.read_range", "repo.search"]
+
+# --- Retrieval Track -----------------------------------------------------
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "encode_request data not Mapping DeprecationWarning encode_content compat", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "what happens if I pass a bytes body in the argument meant for form fields", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "DeprecationWarning tells me to use a different keyword to upload raw bytes or text", limit = 10 }
+
+# --- Structured gold -----------------------------------------------------
+[gold]
+files         = ["httpx/_content.py"]
+symbols       = ["encode_request", "encode_content"]
+tests         = ["tests/test_content.py"]
+docs          = ["docs/compatibility.md"]
+ranges        = [{ path = "httpx/_content.py", start = 186, end = 218 }, { path = "httpx/_content.py", start = 107, end = 133 }]
+justification = "encode_request checks that data is a Mapping; when it is not, it warns with DeprecationWarning and forwards the value to encode_content exactly as if it had been passed as content, which is the requests-compatibility path."
+
+[limits]
+max_tool_calls        = 20
+max_repository_tokens = 30000
+wall_clock_s          = 180
