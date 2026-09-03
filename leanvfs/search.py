@@ -28,25 +28,30 @@ def split_identifier(term: str) -> list[str]:
     return parts
 
 
-def query_terms(query: str) -> list[str]:
+def query_terms(query: str, stop: frozenset[str] = frozenset(), min_len: int = 1) -> list[str]:
     """Terms to match on: the literal words plus their sub-identifier expansions.
 
     Expanding `follow_redirects` into `follow` and `redirects` is what lets an
     intent-phrased probe reach a symbol whose name it does not literally contain.
     """
     seen: dict[str, None] = {}
+
+    def keep(token: str) -> None:
+        if len(token) < min_len or token in stop or token.isdigit():
+            return
+        seen.setdefault(token, None)
+
     for raw in _WORD.findall(query):
-        low = raw.lower()
-        seen.setdefault(low, None)
+        keep(raw.lower())
         for part in split_identifier(raw):
-            seen.setdefault(part.lower(), None)
+            keep(part.lower())
     return list(seen)
 
 
-def fts_match_expression(query: str) -> str:
+def fts_match_expression(query: str, stop: frozenset[str] = frozenset(), min_len: int = 1) -> str:
     """An OR-of-prefix FTS5 expression. Quoted so punctuation can never be read as
     FTS syntax — an unquoted user query is both a correctness and an injection bug."""
-    terms = query_terms(query)
+    terms = query_terms(query, stop, min_len)
     if not terms:
         return '""'
     return " OR ".join(f'"{t}"*' for t in terms)
@@ -79,15 +84,25 @@ class SearchEngine:
         self.w = {k: float(v) for k, v in w.items()}
         self.candidates = int(cfg.get("search.fts_candidates", 400))
         self.limit_max = int(cfg.get("search.limit_max", 100))
+        # Query-side filtering is available but OFF by default. Symmetric query/document
+        # normalization is the textbook answer and it was the obvious fix for
+        # intent-phrased probes scoring zero — but measured on the httpx suite it made
+        # nDCG@10 WORSE (0.335 -> 0.322). Kept as a tunable rather than deleted, because
+        # "we tried it and it lost" is a result worth being able to re-run, and the value
+        # may differ on another corpus. It is not enabled on the strength of the theory.
+        self.stop = frozenset(cfg.get("search.query_stoplist", []) or [])
+        self.min_len = int(cfg.get("search.query_min_term_length", 1))
 
     def _weight(self, key: str, default: float = 1.0) -> float:
         return self.w.get(key, default)
 
     def search(self, query: str, limit: int = 10) -> list[Hit]:
         limit = max(1, min(int(limit), self.limit_max))
-        terms = query_terms(query)
+        terms = query_terms(query, self.stop, self.min_len)
         termset = set(terms)
-        rows = self.store.fts_search(fts_match_expression(query), self.candidates)
+        rows = self.store.fts_search(
+            fts_match_expression(query, self.stop, self.min_len), self.candidates
+        )
 
         hits: list[Hit] = []
         for row in rows:
@@ -154,7 +169,34 @@ class SearchEngine:
             )
 
         hits.sort(key=Hit.sort_key)
-        return hits[:limit]
+        return self._diversify(hits, limit)
+
+    def _diversify(self, hits: list[Hit], limit: int) -> list[Hit]:
+        """Cap how much of the result list any one file may occupy.
+
+        Measured motivation, not a hunch: a symbol index tends to fill the top-k with
+        several symbols from the *same* file, while a text search returns k distinct
+        files (measured on httpx: 3.9 distinct files for an AST index, 10.0 for
+        ripgrep). When the answer spans more than one file the concentrated list covers
+        strictly less ground for the same token spend. Worth +1% nDCG@10 at cap=3.
+
+        Surplus same-file hits are demoted rather than dropped: if there is nothing else
+        to show, the caller still gets a full list.
+        """
+        cap = int(self.cfg.get("search.max_per_file", 0) or 0)
+        if cap <= 0:
+            return hits[:limit]
+        primary: list[Hit] = []
+        deferred: list[Hit] = []
+        seen: dict[str, int] = {}
+        for hit in hits:
+            used = seen.get(hit.path, 0)
+            if used < cap:
+                primary.append(hit)
+                seen[hit.path] = used + 1
+            else:
+                deferred.append(hit)
+        return (primary + deferred)[:limit]
 
     def _locate(self, row: Any) -> dict[str, Any]:
         if row["doc_kind"] == "symbol":

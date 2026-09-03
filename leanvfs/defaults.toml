@@ -250,6 +250,12 @@ framework_metadata = 3
 comment_note = 3
 
 [search]
+# Cap on hits from any one file before the rest are demoted; 0 disables.
+# Measured +1% nDCG@10 on httpx at 3 (sweep: 0/1/2/3/5/8 -> .3314/.3157/.3307/.3349/.3310/.3314).
+max_per_file = 3
+# Query-side normalization, default OFF: measured worse on httpx (see search.py).
+query_stoplist = []
+query_min_term_length = 1
 limit_default = 10
 limit_max = 100
 snippet_chars = 160

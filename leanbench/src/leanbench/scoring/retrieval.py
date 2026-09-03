@@ -136,14 +136,25 @@ def mrr(results: list[ResultItem], gold: GoldSet) -> float:
 
 
 def ndcg_at_k(results: list[ResultItem], gold: GoldSet, k: int) -> float:
-    """Binary gain, log2 discount."""
-    universe = gold.universe
+    """Binary gain, log2 discount, gain awarded once per DISTINCT gold item.
+
+    The deduplication is load-bearing, not a refinement. Relevance here is many-to-one:
+    ten different symbols in one gold file are all "relevant", but they cover a single
+    gold item. Awarding gain per result would let a candidate that floods the top ten
+    with hits from one file accumulate ten gains against an ideal ranking built from one
+    item — producing nDCG above 1.0, which is definitionally impossible and silently
+    rewards redundancy over coverage. `recall_at_k` already dedupes for the same reason.
+    """
+    universe = set(gold.universe)
     if not universe or k <= 0:
         return 0.0
     dcg = 0.0
+    covered: set[str] = set()
     for rank, item in enumerate(results[:k], start=1):
-        if is_relevant(item, gold):
+        new_items = set(matched_gold_items(item, gold)) & universe
+        if new_items - covered:
             dcg += 1.0 / math.log2(rank + 1)
+            covered |= new_items
     ideal_hits = min(len(universe), k)
     idcg = sum(1.0 / math.log2(rank + 1) for rank in range(1, ideal_hits + 1))
     if idcg == 0.0:
