@@ -40,23 +40,25 @@ SCHEMA_DOC: dict[str, str] = {
     "general.workers": "Parallel parse workers. Ordering-sensitive work stays sequential.",
     "discovery.max_file_bytes": "Files larger than this are classified but not parsed.",
     "keywords.idf_refresh": "When the frozen IDF snapshot may be recomputed: sync|never|drift.",
-    "keywords.idf_drift_threshold": "Fraction of corpus churn above which status warns about IDF drift.",
+    "keywords.idf_drift_threshold": (
+        "Fraction of corpus churn above which status warns about IDF drift."
+    ),
     "keywords.max_per_symbol": "Maximum keywords retained per symbol.",
     "keywords.max_per_file": "Maximum keywords retained per file.",
     "resolution.max_ambiguous": "Max R3 candidate edges emitted for an ambiguous name.",
     "budget.default_context_tokens": "Default token budget for get_context.",
     "budget.tokens_per_char": "Approximate-token-counter calibration (tokens per character).",
     "affected.max_depth": "Maximum reverse-edge hops for impact analysis.",
-    "redaction.entropy_threshold": "Shannon entropy (bits/char) above which a long value is redacted.",
+    "redaction.entropy_threshold": (
+        "Shannon entropy (bits/char) above which a long value is redacted."
+    ),
     "render.renderer": "Default renderer seam: compact|debug|json.",
     "mirror.enabled": "Write an on-disk mirror of rendered files (off by default).",
 }
 
 
 def _flattenable(value: Any) -> bool:
-    return isinstance(value, dict) and all(
-        isinstance(k, str) and _IDENT.match(k) for k in value
-    )
+    return isinstance(value, dict) and all(isinstance(k, str) and _IDENT.match(k) for k in value)
 
 
 def flatten(obj: Any, prefix: str = "") -> dict[str, Any]:
@@ -121,7 +123,7 @@ class Config:
             sources=dict(self.sources),
             path_rules=list(self.path_rules),
             profiles=self.profiles,
-            layers=self.layers + [source],
+            layers=[*self.layers, source],
         )
         for key, value in updates.items():
             new.values[key] = value
@@ -158,9 +160,15 @@ def _glob_match(rel_path: str, pattern: str) -> bool:
 
 
 def _config_layers(repo_root: Path | None) -> list[tuple[str, Path]]:
-    layers: list[tuple[str, Path]] = [("/etc/leanvfs/config.toml", Path("/etc/leanvfs/config.toml"))]
+    layers: list[tuple[str, Path]] = [
+        ("/etc/leanvfs/config.toml", Path("/etc/leanvfs/config.toml"))
+    ]
     xdg = os.environ.get("XDG_CONFIG_HOME")
-    home_cfg = Path(xdg) / "leanvfs" / "config.toml" if xdg else Path.home() / ".config" / "leanvfs" / "config.toml"
+    home_cfg = (
+        Path(xdg) / "leanvfs" / "config.toml"
+        if xdg
+        else Path.home() / ".config" / "leanvfs" / "config.toml"
+    )
     layers.append((str(home_cfg), home_cfg))
     if repo_root is not None:
         layers.append((f"{repo_root}/.leanvfs.toml", repo_root / ".leanvfs.toml"))
@@ -184,7 +192,7 @@ def load_config(
 
     cfg = Config(
         values=dict(base),
-        sources={k: SOURCE_BUILTIN for k in base},
+        sources=dict.fromkeys(base, SOURCE_BUILTIN),
         path_rules=list(DEFAULT_PATH_RULES),
         profiles=profiles,
         layers=[SOURCE_BUILTIN],

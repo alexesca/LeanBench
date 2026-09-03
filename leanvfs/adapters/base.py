@@ -44,9 +44,7 @@ class MetadataOnlyAdapter:
     def extract(self, ctx: ExtractionContext) -> FileExtraction:
         ext = FileExtraction(file=ctx.file)
         key = make_stable_key("meta", ctx.rel_path, "module", ctx.rel_path)
-        ext.symbols.append(
-            _file_symbol(key, ctx.rel_path, ctx.file.line_count)
-        )
+        ext.symbols.append(_file_symbol(key, ctx.rel_path, ctx.file.line_count))
         ext.canonicalize()
         return ext
 

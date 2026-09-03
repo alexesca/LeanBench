@@ -19,8 +19,8 @@ _local = threading.local()
 def ts_language() -> Any:
     lang = getattr(_local, "language", None)
     if lang is None:
-        from tree_sitter import Language
         import tree_sitter_python
+        from tree_sitter import Language
 
         lang = Language(tree_sitter_python.language())
         _local.language = lang

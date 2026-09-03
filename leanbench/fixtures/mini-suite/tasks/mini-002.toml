@@ -1,0 +1,46 @@
+id          = "mini-002"
+version     = 1
+repository  = "mini-repo"
+commit      = "fixture"
+category    = "api_contract"
+difficulty  = "L1"
+authored_by = "claude-opus-5"
+reviewed_by = ""
+authored_at = "2026-09-03"
+tags        = ["money"]
+
+required_capabilities = ["search"]
+allowed_tools         = ["candidate.search"]
+
+prompt = """
+How are monetary amounts represented, and what guarantees does that representation give
+about rounding?
+"""
+
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "Money add scale percent_off minor units", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "how does this codebase avoid floating point rounding errors on prices", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "a total came out a penny short after applying a percentage", limit = 10 }
+
+
+[gold]
+files   = ["shopcart/models.py"]
+symbols = ["Money", "Money.percent_off"]
+tests   = ["tests/test_models.py"]
+justification = "Money stores integer minor units and percent_off is where the rounding rule is applied, so both the representation and its rounding guarantee live there."
+
+
+[limits]
+max_tool_calls        = 10
+max_repository_tokens = 8000
+wall_clock_s          = 30

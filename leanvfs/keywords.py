@@ -13,8 +13,9 @@ That is the enforcement mechanism behind the architectural test.
 from __future__ import annotations
 
 import math
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
-from typing import Any, Iterable, Sequence
+from typing import Any
 
 from .model import KeywordCandidate, ScoredKeyword
 
@@ -116,8 +117,9 @@ def score(
     file_path = candidates[0].file_path if candidates else ""
     for (symbol_key, term), (s, source) in best.items():
         grouped.setdefault(symbol_key, []).append(
-            ScoredKeyword(term=term, score=s, source=source, symbol_key=symbol_key,
-                          file_path=file_path)
+            ScoredKeyword(
+                term=term, score=s, source=source, symbol_key=symbol_key, file_path=file_path
+            )
         )
 
     out: list[ScoredKeyword] = []

@@ -24,6 +24,7 @@ from ..model import (
     Symbol,
     make_stable_key,
 )
+from ..registry import FactKindError
 from .base import ExtractionContext
 from .tokens import structure_hash_generic
 
@@ -63,19 +64,22 @@ class ConfigAdapter:
             ctx.file.parse_state = "partial"
             pairs = []
 
-        emitted = 0
-        for key, value, kind in pairs:
+        for emitted, (key, value, kind) in enumerate(pairs):
             if emitted >= max_keys:
                 break
-            emitted += 1
             short = _short(value, max_chars)
             try:
                 ext.facts.append(
-                    reg.make("config_key", f"{key}={short}", file_path=path,
-                             symbol_key=root_key, provenance="configuration",
-                             confidence=0.9)
+                    reg.make(
+                        "config_key",
+                        f"{key}={short}",
+                        file_path=path,
+                        symbol_key=root_key,
+                        provenance="configuration",
+                        confidence=0.9,
+                    )
                 )
-            except Exception as exc:
+            except FactKindError as exc:
                 ext.diagnostics.append(f"fact-rejected:config_key:{exc}")
             leaf = key.rsplit(".", 1)[-1]
             if _ENVVAR.match(leaf):
@@ -113,18 +117,26 @@ class ConfigAdapter:
         ext.canonicalize()
         return ext
 
-    def _build_facts(self, ctx: ExtractionContext, ext: FileExtraction, root_key: str,
-                     pairs: list[tuple[str, Any, str]]) -> None:
+    def _build_facts(
+        self,
+        ctx: ExtractionContext,
+        ext: FileExtraction,
+        root_key: str,
+        pairs: list[tuple[str, Any, str]],
+    ) -> None:
         reg = ctx.registry
         path = ctx.rel_path
         for key, value, _kind in pairs:
             low = key.lower()
-            if low.endswith(("project.name", "name")) and isinstance(value, str) and "." not in low[:-4]:
+            if (
+                low.endswith(("project.name", "name"))
+                and isinstance(value, str)
+                and "." not in low[:-4]
+            ):
                 ctx.file.role = f"project {value}"[:120]
                 _safe(ext, reg, path, root_key, "purpose", f"project {value}"[:120])
-            if "dependencies" in low or low.endswith("requires"):
-                if isinstance(value, str):
-                    _safe(ext, reg, path, root_key, "resource", f"dependency={value[:60]}")
+            if ("dependencies" in low or low.endswith("requires")) and isinstance(value, str):
+                _safe(ext, reg, path, root_key, "resource", f"dependency={value[:60]}")
             if "scripts" in low or "entry_points" in low or "console_scripts" in low:
                 _safe(ext, reg, path, root_key, "resource", f"entrypoint={key}")
 
@@ -132,10 +144,16 @@ class ConfigAdapter:
 def _safe(ext: FileExtraction, reg: Any, path: str, key: str, kind: str, value: str) -> None:
     try:
         ext.facts.append(
-            reg.make(kind, value, file_path=path, symbol_key=key,
-                     provenance="configuration", confidence=0.8)
+            reg.make(
+                kind,
+                value,
+                file_path=path,
+                symbol_key=key,
+                provenance="configuration",
+                confidence=0.8,
+            )
         )
-    except Exception as exc:
+    except FactKindError as exc:
         ext.diagnostics.append(f"fact-rejected:{kind}:{exc}")
 
 
@@ -157,8 +175,9 @@ def _short(value: Any, limit: int) -> str:
     return text or "<empty>"
 
 
-def _flatten(obj: Any, prefix: str, depth: int, max_depth: int,
-             out: list[tuple[str, Any, str]]) -> None:
+def _flatten(
+    obj: Any, prefix: str, depth: int, max_depth: int, out: list[tuple[str, Any, str]]
+) -> None:
     if depth > max_depth:
         return
     if isinstance(obj, dict):
@@ -191,7 +210,7 @@ def _parse(ctx: ExtractionContext, max_depth: int) -> list[tuple[str, Any, str]]
                     out.append((f"{section}.{k}", v, "str"))
         elif path.endswith((".yaml", ".yml")):
             out.extend(_yaml_keys(text, max_depth))
-        elif path.endswith(".env.example") or path.endswith(".env"):
+        elif path.endswith((".env.example", ".env")):
             for line in text.splitlines():
                 line = line.strip()
                 if not line or line.startswith("#") or "=" not in line:
@@ -205,7 +224,9 @@ def _parse(ctx: ExtractionContext, max_depth: int) -> list[tuple[str, Any, str]]
                     out.append(("requirement", line, "str"))
         else:
             return []
-    except Exception:
+    except (OSError, ValueError, UnicodeDecodeError):
+        # A malformed or unreadable config file yields no facts; it is never fatal to
+        # the index, and the file still appears with honest metadata.
         return None
     return out
 

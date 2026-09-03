@@ -38,7 +38,7 @@ def rg_binary() -> str:
 
 def rg_version() -> str:
     try:
-        completed = subprocess.run(  # noqa: S603
+        completed = subprocess.run(
             [rg_binary(), "--version"],
             capture_output=True,
             text=True,
@@ -103,7 +103,7 @@ def run_rg(
         argv.append(str(root))
 
     try:
-        completed = subprocess.run(  # noqa: S603
+        completed = subprocess.run(
             argv,
             capture_output=True,
             text=True,

@@ -81,9 +81,13 @@ def load_corpus(path: Path | None = None) -> Corpus:
     try:
         data = tomllib.loads(manifest_path.read_text(encoding="utf-8"))
     except OSError as exc:
-        raise BenchmarkInfrastructureError(f"cannot read corpus manifest {manifest_path}: {exc}") from exc
+        raise BenchmarkInfrastructureError(
+            f"cannot read corpus manifest {manifest_path}: {exc}"
+        ) from exc
     except tomllib.TOMLDecodeError as exc:
-        raise BenchmarkInfrastructureError(f"malformed corpus manifest {manifest_path}: {exc}") from exc
+        raise BenchmarkInfrastructureError(
+            f"malformed corpus manifest {manifest_path}: {exc}"
+        ) from exc
 
     entries: dict[str, RepositoryEntry] = {}
     for raw in data.get("repositories", []):
@@ -106,6 +110,4 @@ def load_corpus(path: Path | None = None) -> Corpus:
         if entry.id in entries:
             raise BenchmarkInfrastructureError(f"duplicate corpus repository id {entry.id!r}")
         entries[entry.id] = entry
-    return Corpus(
-        entries=entries, manifest_path=manifest_path, repo_root=repository_root()
-    )
+    return Corpus(entries=entries, manifest_path=manifest_path, repo_root=repository_root())

@@ -34,7 +34,7 @@ class StructuredFormatter(logging.Formatter):
 class ContextLogger:
     """A logger bound to a run/task/component triple."""
 
-    __slots__ = ("_logger", "_context")
+    __slots__ = ("_context", "_logger")
 
     def __init__(self, logger: logging.Logger, context: dict[str, Any]):
         self._logger = logger

@@ -153,7 +153,7 @@ class MinimalAstServer(BaseServer):
             base = record.module
         if not base:
             return None
-        for candidate in ([f"{base}.{record.name}", base] if record.name else [base]):
+        for candidate in [f"{base}.{record.name}", base] if record.name else [base]:
             path = self.module_to_path.get(candidate)
             if path is not None:
                 return path

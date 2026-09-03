@@ -85,7 +85,7 @@ class JsonlTransport:
         merged_env.update(self.env)
         merged_env.setdefault("PYTHONUNBUFFERED", "1")
         try:
-            self.process = subprocess.Popen(  # noqa: S603 - command comes from a trusted manifest
+            self.process = subprocess.Popen(
                 self.resolved_command(),
                 cwd=str(self.cwd),
                 env=merged_env,

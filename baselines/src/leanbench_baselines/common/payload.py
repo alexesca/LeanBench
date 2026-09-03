@@ -67,9 +67,7 @@ def render(payload: Payload, fmt: str, budget: int | None) -> Rendered:
         if stopped:
             dropped[item.kind] = dropped.get(item.kind, 0) + 1
             continue
-        cost = (
-            approx_tokens_json(item.data) + 2 if fmt == "json" else approx_tokens(item.text) + 1
-        )
+        cost = approx_tokens_json(item.data) + 2 if fmt == "json" else approx_tokens(item.text) + 1
         if budget is not None and used + cost > budget:
             stopped = True
             dropped[item.kind] = dropped.get(item.kind, 0) + 1

@@ -32,7 +32,7 @@ from .model import FileExtraction, FileRecord, KeywordCandidate
 from .redact import Redactor
 from .registry import FactRegistry
 from .resolve import Resolver, tier_rates
-from .state import IndexState, load_state, save_state, write_resolved_config
+from .state import IndexState, save_state, write_resolved_config
 from .store import Store
 from .symbolindex import SqlSymbolIndex
 from .telemetry import Telemetry
@@ -94,8 +94,11 @@ class Indexer:
             # A file that vanished or became unreadable mid-parse is a real, expected
             # event on a live tree — it is recorded, never swallowed.
             rec = FileRecord(
-                path=disc.rel_path, language=disc.language, file_class=disc.file_class,
-                parse_state="failed", error=f"{type(exc).__name__}: {exc}",
+                path=disc.rel_path,
+                language=disc.language,
+                file_class=disc.file_class,
+                parse_state="failed",
+                error=f"{type(exc).__name__}: {exc}",
             )
             ext = FileExtraction(file=rec)
             ext.diagnostics.append(f"read_error: {exc}")
@@ -185,9 +188,7 @@ class Indexer:
         with self.telemetry.timer("keywords"):
             doc_term_sets: list[set[str]] = []
             for ext in extractions:
-                terms = normalize_terms(
-                    (c.term for c in ext.keyword_candidates), self.cfg
-                )
+                terms = normalize_terms((c.term for c in ext.keyword_candidates), self.cfg)
                 doc_term_sets.append(set(terms))
             permit = GlobalStatsPermit("full_sync")
             entries, doc_count = compute_idf(doc_term_sets, permit)
@@ -259,9 +260,7 @@ class Indexer:
             secrets = sum(1 for r in redacted if r.was_redacted)
             if secrets:
                 self.telemetry.incr("secrets_redacted", secrets)
-            result.facts += self.store.insert_facts(
-                redacted, file_id, symbol_ids, generation
-            )
+            result.facts += self.store.insert_facts(redacted, file_id, symbol_ids, generation)
 
             if ext.keyword_candidates:
                 candidates = list(ext.keyword_candidates)
@@ -331,8 +330,15 @@ class Indexer:
             self.store.insert_unresolved(
                 [
                     (
-                        ref.name, ref.kind, sid, fid, ref.line,
-                        ref.receiver, ref.alias_module, ref.arity, generation,
+                        ref.name,
+                        ref.kind,
+                        sid,
+                        fid,
+                        ref.line,
+                        ref.receiver,
+                        ref.alias_module,
+                        ref.arity,
+                        generation,
                     )
                     for ref, sid, fid in pending
                 ]
@@ -356,15 +362,19 @@ class Indexer:
         for ext in extractions:
             fid = ext.file.id
             scored = getattr(ext, "scored_keywords", [])
-            file_kw = " ".join(
-                sorted({k.term for k in scored if k.symbol_key is None})
-            )
-            file_facts = " ".join(
-                sorted({f.value for f in ext.facts if f.symbol_key is None})
-            )
+            file_kw = " ".join(sorted({k.term for k in scored if k.symbol_key is None}))
+            file_facts = " ".join(sorted({f.value for f in ext.facts if f.symbol_key is None}))
             self.store.index_search_doc(
-                "file", fid, ext.file.path, "", "", "", file_kw, file_facts,
-                ext.file.role, ext.file.file_class,
+                "file",
+                fid,
+                ext.file.path,
+                "",
+                "",
+                "",
+                file_kw,
+                file_facts,
+                ext.file.role,
+                ext.file.file_class,
             )
             by_symbol: dict[str, list[str]] = {}
             for k in scored:
@@ -380,9 +390,14 @@ class Indexer:
                 if not sid:
                     continue
                 self.store.index_search_doc(
-                    "symbol", sid, ext.file.path, sym.name, sym.qualified_name,
+                    "symbol",
+                    sid,
+                    ext.file.path,
+                    sym.name,
+                    sym.qualified_name,
                     sym.signature,
                     " ".join(sorted(set(by_symbol.get(sym.stable_key, [])))),
                     " ".join(sorted(set(facts_by_symbol.get(sym.stable_key, [])))),
-                    ext.file.role, ext.file.file_class,
+                    ext.file.role,
+                    ext.file.file_class,
                 )

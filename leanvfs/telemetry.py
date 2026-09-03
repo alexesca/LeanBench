@@ -3,29 +3,52 @@
 from __future__ import annotations
 
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
-from typing import Iterator
 
 COUNTERS = (
-    "files_discovered", "files_hashed", "hash_skips", "structure_hash_skips",
-    "parse_full", "parse_incremental", "symbols_added", "symbols_removed",
-    "symbols_changed", "facts_created", "facts_dropped_by_budget",
-    "relationships_created", "relationships_by_tier_R0", "relationships_by_tier_R1",
-    "relationships_by_tier_R2", "relationships_by_tier_R3", "relationships_by_tier_R4",
-    "unresolved_refs_pending", "re_resolutions", "queries", "cache_hit", "cache_miss",
+    "files_discovered",
+    "files_hashed",
+    "hash_skips",
+    "structure_hash_skips",
+    "parse_full",
+    "parse_incremental",
+    "symbols_added",
+    "symbols_removed",
+    "symbols_changed",
+    "facts_created",
+    "facts_dropped_by_budget",
+    "relationships_created",
+    "relationships_by_tier_R0",
+    "relationships_by_tier_R1",
+    "relationships_by_tier_R2",
+    "relationships_by_tier_R3",
+    "relationships_by_tier_R4",
+    "unresolved_refs_pending",
+    "re_resolutions",
+    "queries",
+    "cache_hit",
+    "cache_miss",
     "secrets_redacted",
 )
 
 DURATIONS = (
-    "discovery", "hashing", "parsing", "extraction", "resolution", "budget", "commit",
-    "render", "search",
+    "discovery",
+    "hashing",
+    "parsing",
+    "extraction",
+    "resolution",
+    "budget",
+    "commit",
+    "render",
+    "search",
 )
 
 
 class Telemetry:
     def __init__(self) -> None:
-        self.counters: dict[str, int] = {name: 0 for name in COUNTERS}
-        self.durations: dict[str, float] = {name: 0.0 for name in DURATIONS}
+        self.counters: dict[str, int] = dict.fromkeys(COUNTERS, 0)
+        self.durations: dict[str, float] = dict.fromkeys(DURATIONS, 0.0)
 
     def incr(self, name: str, amount: int = 1) -> None:
         self.counters[name] = self.counters.get(name, 0) + amount
@@ -48,5 +71,5 @@ class Telemetry:
         for name, value in sorted(self.durations.items()):
             if value:
                 store.add_duration(name, value)
-        self.counters = {name: 0 for name in COUNTERS}
-        self.durations = {name: 0.0 for name in DURATIONS}
+        self.counters = dict.fromkeys(COUNTERS, 0)
+        self.durations = dict.fromkeys(DURATIONS, 0.0)

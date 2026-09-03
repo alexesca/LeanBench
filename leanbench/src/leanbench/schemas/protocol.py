@@ -3,11 +3,10 @@ candidate response is admitted; anything that fails is `invalid_response`."""
 
 from __future__ import annotations
 
-from typing import Annotated, Any, Literal, Union
-
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Annotated, Any, Literal
 
 from leanbench.schemas.common import ErrorCode, IndexState
+from pydantic import BaseModel, ConfigDict, Field
 
 PROTOCOL_VERSION = 1
 
@@ -66,7 +65,7 @@ class ErrorResponse(BaseModel):
 
 
 Response = Annotated[
-    Union[OkResponse, ProgressResponse, ErrorResponse],
+    OkResponse | ProgressResponse | ErrorResponse,
     Field(discriminator="status"),
 ]
 

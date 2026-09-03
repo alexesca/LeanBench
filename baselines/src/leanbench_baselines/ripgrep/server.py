@@ -62,6 +62,9 @@ def _file_weight(repo: Repository, path: str) -> float:
     return 0.4
 
 
+#: Docstring openers, used when lifting a module docstring out of a match.
+TRIPLE_QUOTES = ('"""', "'''")
+
 class RipgrepServer(BaseServer):
     NAME = "Ripgrep"
     VERSION = "0.1.0"
@@ -173,7 +176,7 @@ class RipgrepServer(BaseServer):
             row = lines[number - 1].strip()
             if not row:
                 continue
-            if not out and not (row.startswith('"""') or row.startswith("'''")):
+            if not out and not row.startswith(TRIPLE_QUOTES):
                 break
             cleaned = row.strip('"').strip("'").strip()
             if cleaned:
@@ -236,13 +239,9 @@ class RipgrepServer(BaseServer):
                 covered.update(self._attribute(text, attribution))
             if not covered:
                 continue
-            per_file.setdefault(match.path, []).append(
-                (match.line, match.text, frozenset(covered))
-            )
+            per_file.setdefault(match.path, []).append((match.line, match.text, frozenset(covered)))
 
-        scored: list[
-            tuple[tuple[float, str], str, list[tuple[int, str, frozenset[str]]], int]
-        ] = []
+        scored: list[tuple[tuple[float, str], str, list[tuple[int, str, frozenset[str]]], int]] = []
         for path in sorted(per_file):
             rows = sorted(per_file[path])
             covered_all: set[str] = set()
@@ -309,8 +308,7 @@ class RipgrepServer(BaseServer):
                     kind="hit",
                     data=hit,
                     text=(
-                        f"{path}:{hit['line_start']}{label} score={hit['score']}\n"
-                        + hit["snippet"]
+                        f"{path}:{hit['line_start']}{label} score={hit['score']}\n" + hit["snippet"]
                     ),
                 )
             )
@@ -570,9 +568,7 @@ class RipgrepServer(BaseServer):
                 covered.update(self._attribute(text, attribution))
             if not covered:
                 continue
-            per_file.setdefault(match.path, []).append(
-                (match.line, match.text, frozenset(covered))
-            )
+            per_file.setdefault(match.path, []).append((match.line, match.text, frozenset(covered)))
 
         docs: list[tuple[tuple[float, str, int], dict[str, Any]]] = []
         for path in sorted(per_file):
@@ -580,9 +576,7 @@ class RipgrepServer(BaseServer):
             covered_all: set[str] = set()
             for _, _, covered in rows:
                 covered_all |= covered
-            score = round(
-                0.7 * (len(covered_all) / len(keys)) + 0.3 * min(1.0, len(rows) / 8.0), 4
-            )
+            score = round(0.7 * (len(covered_all) / len(keys)) + 0.3 * min(1.0, len(rows) / 8.0), 4)
             line = rows[0][0]
             heading = self._heading(path, line)
             excerpt = "\n".join(

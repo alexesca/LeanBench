@@ -1,0 +1,45 @@
+id          = "mini-006"
+version     = 1
+repository  = "mini-repo"
+commit      = "fixture"
+category    = "architecture"
+difficulty  = "L3"
+authored_by = "claude-opus-5"
+reviewed_by = ""
+authored_at = "2026-09-03"
+tags        = ["tax", "pricing"]
+
+required_capabilities = ["search"]
+allowed_tools         = ["candidate.search"]
+
+prompt = """
+How is tax applied relative to discounts, and which component owns that decision?
+"""
+
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "TaxCalculator add_tax PricingEngine compute_total discount", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "is tax worked out before or after money comes off the total", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "the tax charged looks too high on a discounted order", limit = 10 }
+
+
+[gold]
+files   = ["shopcart/pricing.py"]
+symbols = ["PricingEngine.compute_total", "TaxCalculator.add_tax"]
+tests   = ["tests/test_pricing.py"]
+justification = "compute_total sequences discount-then-tax and delegates only the rate to TaxCalculator, so the ordering decision is owned by PricingEngine."
+
+
+[limits]
+max_tool_calls        = 10
+max_repository_tokens = 8000
+wall_clock_s          = 30

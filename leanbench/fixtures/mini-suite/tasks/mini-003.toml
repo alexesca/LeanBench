@@ -1,0 +1,46 @@
+id          = "mini-003"
+version     = 1
+repository  = "mini-repo"
+commit      = "fixture"
+category    = "tests"
+difficulty  = "L2"
+authored_by = "claude-opus-5"
+reviewed_by = ""
+authored_at = "2026-09-03"
+tags        = ["stock"]
+
+required_capabilities = ["search"]
+allowed_tools         = ["candidate.search"]
+
+prompt = """
+Which exception signals that a cart cannot be fulfilled from stock, and which tests
+pin that behaviour?
+"""
+
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "OutOfStock reserve_cart InventoryRepository", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "what is raised when the warehouse does not have enough of an item", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "ordering five of something when only two remain fails", limit = 10 }
+
+
+[gold]
+files   = ["shopcart/inventory.py", "shopcart/errors.py"]
+symbols = ["OutOfStock", "InventoryRepository.reserve"]
+tests   = ["tests/test_inventory.py"]
+justification = "reserve raises OutOfStock when requested exceeds available; the exception is defined in errors.py and test_inventory.py pins the behaviour."
+
+
+[limits]
+max_tool_calls        = 10
+max_repository_tokens = 8000
+wall_clock_s          = 30

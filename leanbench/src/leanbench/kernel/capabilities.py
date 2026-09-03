@@ -47,6 +47,7 @@ def op_declared(op: str, declared: Iterable[str]) -> bool:
 
 
 def ops_for_capabilities(capabilities: Iterable[str]) -> frozenset[str]:
-    return frozenset(
-        OP_FOR_CAPABILITY[c] for c in capabilities if c in OP_FOR_CAPABILITY
-    ) | UNGATED_OPS
+    return (
+        frozenset(OP_FOR_CAPABILITY[c] for c in capabilities if c in OP_FOR_CAPABILITY)
+        | UNGATED_OPS
+    )

@@ -10,9 +10,11 @@ second path from an extractor to the `facts` table.
 
 from __future__ import annotations
 
+import contextlib
 import sqlite3
+from collections.abc import Iterable, Sequence
 from pathlib import Path
-from typing import Any, Iterable, Sequence
+from typing import Any
 
 from .model import (
     Fact,
@@ -204,10 +206,8 @@ class Store:
 
     # -- lifecycle ------------------------------------------------------
     def close(self) -> None:
-        try:
+        with contextlib.suppress(sqlite3.Error):  # closing twice must not raise
             self.conn.close()
-        except sqlite3.Error:  # pragma: no cover
-            pass
 
     def begin(self) -> None:
         self.conn.execute("BEGIN IMMEDIATE")
@@ -216,10 +216,8 @@ class Store:
         self.conn.execute("COMMIT")
 
     def rollback(self) -> None:
-        try:
+        with contextlib.suppress(sqlite3.Error):  # no active transaction is fine
             self.conn.execute("ROLLBACK")
-        except sqlite3.Error:  # pragma: no cover
-            pass
 
     def size_bytes(self) -> int:
         total = 0
@@ -297,8 +295,16 @@ class Store:
             "structure_hash=excluded.structure_hash, parse_state=excluded.parse_state, "
             "role=excluded.role, generation=excluded.generation",
             (
-                rec.path, rec.language, rec.file_class, rec.byte_size, rec.line_count,
-                rec.source_hash, rec.structure_hash, rec.parse_state, rec.role, generation,
+                rec.path,
+                rec.language,
+                rec.file_class,
+                rec.byte_size,
+                rec.line_count,
+                rec.source_hash,
+                rec.structure_hash,
+                rec.parse_state,
+                rec.role,
+                generation,
             ),
         )
         if cur.lastrowid:
@@ -324,9 +330,7 @@ class Store:
             self.conn.execute(f"DELETE FROM {table} WHERE file_id=?", (file_id,))
         self.conn.execute("DELETE FROM relationships WHERE source_file_id=?", (file_id,))
         self.conn.execute("DELETE FROM unresolved_refs WHERE source_file_id=?", (file_id,))
-        self.conn.execute(
-            "DELETE FROM search_fts WHERE doc_kind='file' AND doc_id=?", (file_id,)
-        )
+        self.conn.execute("DELETE FROM search_fts WHERE doc_kind='file' AND doc_id=?", (file_id,))
         self.conn.execute("DELETE FROM files WHERE id=?", (file_id,))
 
     def clear_file_derived(self, file_id: int) -> None:
@@ -339,13 +343,13 @@ class Store:
         self.conn.execute("DELETE FROM unresolved_refs WHERE source_file_id=?", (file_id,))
         self.conn.execute("DELETE FROM symbols WHERE file_id=?", (file_id,))
         for sid in sym_ids:
-            self.conn.execute(
-                "DELETE FROM search_fts WHERE doc_kind='symbol' AND doc_id=?", (sid,)
-            )
+            self.conn.execute("DELETE FROM search_fts WHERE doc_kind='symbol' AND doc_id=?", (sid,))
         self.conn.execute("DELETE FROM search_fts WHERE doc_kind='file' AND doc_id=?", (file_id,))
 
     # -- symbols --------------------------------------------------------
-    def insert_symbols(self, file_id: int, symbols: Sequence[Symbol], generation: int) -> dict[str, int]:
+    def insert_symbols(
+        self, file_id: int, symbols: Sequence[Symbol], generation: int
+    ) -> dict[str, int]:
         out: dict[str, int] = {}
         for sym in symbols:
             cur = self.conn.execute(
@@ -366,12 +370,28 @@ class Store:
                 "doc_hash=excluded.doc_hash, metadata_hash=excluded.metadata_hash, "
                 "decorators=excluded.decorators, generation=excluded.generation",
                 (
-                    sym.stable_key, file_id, None, sym.kind, sym.name, sym.qualified_name,
-                    sym.visibility, sym.signature, sym.return_type, sym.doc,
-                    1 if sym.is_async else 0, 1 if sym.is_exported else 0,
-                    sym.range.line_start, sym.range.line_end, sym.range.byte_start,
-                    sym.range.byte_end, sym.interface_hash, sym.behavior_hash,
-                    sym.doc_hash, sym.metadata_hash, ",".join(sym.decorators), generation,
+                    sym.stable_key,
+                    file_id,
+                    None,
+                    sym.kind,
+                    sym.name,
+                    sym.qualified_name,
+                    sym.visibility,
+                    sym.signature,
+                    sym.return_type,
+                    sym.doc,
+                    1 if sym.is_async else 0,
+                    1 if sym.is_exported else 0,
+                    sym.range.line_start,
+                    sym.range.line_end,
+                    sym.range.byte_start,
+                    sym.range.byte_end,
+                    sym.interface_hash,
+                    sym.behavior_hash,
+                    sym.doc_hash,
+                    sym.metadata_hash,
+                    ",".join(sym.decorators),
+                    generation,
                 ),
             )
             del cur
@@ -488,8 +508,13 @@ class Store:
         )
 
     # -- keywords -------------------------------------------------------
-    def insert_keywords(self, file_id: int, items: Sequence[ScoredKeyword],
-                        symbol_ids: dict[str, int], generation: int) -> None:
+    def insert_keywords(
+        self,
+        file_id: int,
+        items: Sequence[ScoredKeyword],
+        symbol_ids: dict[str, int],
+        generation: int,
+    ) -> None:
         self.conn.executemany(
             "INSERT INTO keywords(file_id, symbol_id, term, score, source, generation) "
             "VALUES(?,?,?,?,?,?)",
@@ -547,8 +572,14 @@ class Store:
             "resolved_file_id, is_local) VALUES(?,?,?,?,?,?,?,?,?)",
             [
                 (
-                    file_id, i.module, i.alias, ",".join(i.names),
-                    1 if i.is_relative else 0, i.level, i.line, None,
+                    file_id,
+                    i.module,
+                    i.alias,
+                    ",".join(i.names),
+                    1 if i.is_relative else 0,
+                    i.level,
+                    i.line,
+                    None,
                     1 if i.is_local else 0,
                 )
                 for i in imports
@@ -607,7 +638,9 @@ class Store:
             )
         )
 
-    def relationships_from(self, source_symbol_id: int, kinds: Sequence[str] | None = None) -> list[sqlite3.Row]:
+    def relationships_from(
+        self, source_symbol_id: int, kinds: Sequence[str] | None = None
+    ) -> list[sqlite3.Row]:
         if kinds:
             q = ",".join("?" * len(kinds))
             sql = (
@@ -633,9 +666,19 @@ class Store:
         return {r["tier"]: int(r["c"]) for r in rows}
 
     # -- fts ------------------------------------------------------------
-    def index_search_doc(self, doc_kind: str, doc_id: int, path: str, symbol: str,
-                         qualified: str, signature: str, keywords: str, facts: str,
-                         role: str, klass: str) -> None:
+    def index_search_doc(
+        self,
+        doc_kind: str,
+        doc_id: int,
+        path: str,
+        symbol: str,
+        qualified: str,
+        signature: str,
+        keywords: str,
+        facts: str,
+        role: str,
+        klass: str,
+    ) -> None:
         self.conn.execute(
             "INSERT INTO search_fts(path, symbol, qualified, signature, keywords, facts, "
             "role, klass, doc_kind, doc_id) VALUES(?,?,?,?,?,?,?,?,?,?)",
@@ -664,7 +707,7 @@ class Store:
             "SELECT name FROM sqlite_master WHERE type='table' ORDER BY name"
         ):
             table = t["name"]
-            if table.startswith("sqlite_") or table.startswith("search_fts_"):
+            if table.startswith(("sqlite_", "search_fts_")):
                 continue
             try:
                 cols = self.conn.execute(f"PRAGMA table_info({table})").fetchall()

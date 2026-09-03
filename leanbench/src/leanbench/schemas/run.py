@@ -4,10 +4,9 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
-
 from leanbench.schemas.events import ResourceSample
 from leanbench.schemas.protocol import CandidateDigests
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class RunManifest(BaseModel):

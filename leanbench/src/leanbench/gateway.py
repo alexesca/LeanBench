@@ -80,7 +80,9 @@ class ToolGateway:
     def tools(self) -> list[str]:
         return sorted(self._allowed)
 
-    def call(self, tool: str, args: dict[str, Any] | None = None, *, task_id: str = "") -> ToolResponse:
+    def call(
+        self, tool: str, args: dict[str, Any] | None = None, *, task_id: str = ""
+    ) -> ToolResponse:
         args = dict(args or {})
         started = time.perf_counter()
         self._recorder.bus.emit(TOOL_CALLED, "gateway", task_id=task_id, tool=tool, args=args)

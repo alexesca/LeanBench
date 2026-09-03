@@ -15,13 +15,12 @@ from ..views import FileView
 class Renderer(Protocol):
     name: str
 
-    def render_file(self, view: FileView, budget: int, cfg: Any) -> tuple[str, BudgetReport]:
-        ...
+    def render_file(self, view: FileView, budget: int, cfg: Any) -> tuple[str, BudgetReport]: ...
 
 
-from .compact import CompactRenderer  # noqa: E402
-from .debug import DebugRenderer  # noqa: E402
-from .json_renderer import JsonRenderer  # noqa: E402
+from .compact import CompactRenderer
+from .debug import DebugRenderer
+from .json_renderer import JsonRenderer
 
 RENDERERS: dict[str, Any] = {
     "compact": CompactRenderer(),
@@ -29,12 +28,20 @@ RENDERERS: dict[str, Any] = {
     "json": JsonRenderer(),
 }
 
-__all__ = ["Renderer", "CompactRenderer", "DebugRenderer", "JsonRenderer", "RENDERERS",
-           "get_renderer"]
+__all__ = [
+    "RENDERERS",
+    "CompactRenderer",
+    "DebugRenderer",
+    "JsonRenderer",
+    "Renderer",
+    "get_renderer",
+]
 
 
 def get_renderer(name: str) -> Any:
     try:
         return RENDERERS[name]
     except KeyError:
-        raise ValueError(f"unknown renderer: {name!r} (have: {', '.join(sorted(RENDERERS))})") from None
+        raise ValueError(
+            f"unknown renderer: {name!r} (have: {', '.join(sorted(RENDERERS))})"
+        ) from None

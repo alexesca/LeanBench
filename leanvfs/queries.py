@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 
 from .budget import BudgetItem, TokenCounter, admit, context_order, per_kind_caps
-from .search import SearchEngine, split_identifier
+from .search import SearchEngine
 from .store import Store
 from .views import build_file_view, build_symbol_view
 
@@ -51,8 +51,9 @@ class QueryEngine:
 
     # -- symbols -----------------------------------------------------------------
     def _find_symbols(self, name: str, limit: int) -> list[Any]:
-        rows = [r for r in self.store.symbols_by_name(name.split(".")[-1])
-                if _match_symbol(r, name)]
+        rows = [
+            r for r in self.store.symbols_by_name(name.split(".")[-1]) if _match_symbol(r, name)
+        ]
         if not rows:
             rows = [r for r in self.store.all_symbols() if _match_symbol(r, name)]
         rows.sort(key=lambda r: (r["qualified_name"], r["stable_key"]))
@@ -89,8 +90,10 @@ class QueryEngine:
             return {}
         row = rows[0]
         view = build_symbol_view(self.store, row, self.cfg)
-        budget = token_budget if token_budget is not None else int(
-            self.cfg.get("budget.context_tokens", 400)
+        budget = (
+            token_budget
+            if token_budget is not None
+            else int(self.cfg.get("budget.context_tokens", 400))
         )
 
         # 1. Identity is unconditional — it is never subject to the budget.
@@ -104,9 +107,7 @@ class QueryEngine:
             "return_type": view.return_type,
             "visibility": view.visibility,
         }
-        spent = self.counter.count(
-            " ".join(str(v) for v in head.values() if v)
-        )
+        spent = self.counter.count(" ".join(str(v) for v in head.values() if v))
 
         # 2. Everything else competes for the remainder, in the configured order.
         order = context_order(self.cfg)

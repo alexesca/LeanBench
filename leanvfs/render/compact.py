@@ -48,14 +48,18 @@ class CompactRenderer:
 
         def add(kind: str, priority: int, confidence: float, value: str, payload: Any) -> None:
             items.append(
-                BudgetItem(kind=kind, priority=priority, confidence=confidence, value=value,
-                           tokens=counter.count(payload if isinstance(payload, str) else value),
-                           payload=payload)
+                BudgetItem(
+                    kind=kind,
+                    priority=priority,
+                    confidence=confidence,
+                    value=value,
+                    tokens=counter.count(payload if isinstance(payload, str) else value),
+                    payload=payload,
+                )
             )
 
         if view.imports_local:
-            add("import", 2, 1.0, "imports.local",
-                f"imports.local={','.join(view.imports_local)}")
+            add("import", 2, 1.0, "imports.local", f"imports.local={','.join(view.imports_local)}")
         if view.imports_ext:
             add("import", 2, 1.0, "imports.ext", f"imports.ext={','.join(view.imports_ext)}")
         if view.exports:
@@ -83,14 +87,21 @@ class CompactRenderer:
             if sym.kind == "module":
                 continue
             depth = _depth(sym, by_key)
-            block = self._symbol_block(sym, indent, depth, show_kw, show_calls, show_fx,
-                                       show_notes)
+            block = self._symbol_block(sym, indent, depth, show_kw, show_calls, show_fx, show_notes)
             if not block:
                 continue
-            priority = 0 if sym.kind in ("class", "function", "method", "property",
-                                         "test_class", "test") else 1
-            add("symbol", priority, 1.0 if sym.visibility == "public" else 0.8,
-                sym.key, "\n".join(block))
+            priority = (
+                0
+                if sym.kind in ("class", "function", "method", "property", "test_class", "test")
+                else 1
+            )
+            add(
+                "symbol",
+                priority,
+                1.0 if sym.visibility == "public" else 0.8,
+                sym.key,
+                "\n".join(block),
+            )
 
         admitted, report = admit(items, budget, per_kind_caps(cfg), counter)
         order = {id(i): n for n, i in enumerate(items)}
@@ -101,9 +112,7 @@ class CompactRenderer:
         for item in admitted:
             text = item.payload if isinstance(item.payload, str) else item.value
             if item.kind == "symbol":
-                if body and not prev_symbol:
-                    body.append("")
-                elif prev_symbol:
+                if (body and not prev_symbol) or prev_symbol:
                     body.append("")
                 prev_symbol = True
             else:
@@ -113,8 +122,16 @@ class CompactRenderer:
         report.tokens_approx = counter.count(out)
         return out, report
 
-    def _symbol_block(self, sym: SymbolView, indent: str, depth: int, show_kw: bool,
-                      show_calls: bool, show_fx: bool, show_notes: bool) -> list[str]:
+    def _symbol_block(
+        self,
+        sym: SymbolView,
+        indent: str,
+        depth: int,
+        show_kw: bool,
+        show_calls: bool,
+        show_fx: bool,
+        show_notes: bool,
+    ) -> list[str]:
         pad = indent * depth
         head = _symbol_head(sym)
         if not head:
@@ -204,13 +221,13 @@ def render_hits(payload: dict) -> str:
     lines = []
     for hit in hits:
         score = hit.get("score") or 0.0
-        lines.append(f"{score:.2f} {hit.get('path','')}")
+        lines.append(f"{score:.2f} {hit.get('path', '')}")
         symbol = hit.get("symbol")
         if symbol:
             start = hit.get("line_start") or 0
             end = hit.get("line_end") or 0
             span = f" L{start}-{end}" if start else ""
-            lines.append(f"     {hit.get('kind','')} {symbol}{span}")
+            lines.append(f"     {hit.get('kind', '')} {symbol}{span}")
     return "\n".join(lines)
 
 
@@ -234,8 +251,15 @@ def render_context(payload: dict) -> str:
         lines.append(f"vis={visibility}")
 
     skip = {
-        "symbol", "path", "line_start", "line_end", "signature", "return_type",
-        "visibility", "kind", "budget_report",
+        "symbol",
+        "path",
+        "line_start",
+        "line_end",
+        "signature",
+        "return_type",
+        "visibility",
+        "kind",
+        "budget_report",
     }
     for key in sorted(k for k in payload if k not in skip):
         value = payload[key]

@@ -103,13 +103,13 @@ def read_jsonl(run_dir: Path, name: str) -> list[Any]:
     if not path.is_file():
         raise BenchmarkInfrastructureError(f"run artifact {name} missing from {run_dir}")
     return [
-        json.loads(line)
-        for line in path.read_text(encoding="utf-8").splitlines()
-        if line.strip()
+        json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()
     ]
 
 
-def environment_artifact(*, tokenizer: str, approximate: bool, reason: str | None = None) -> EnvironmentArtifact:
+def environment_artifact(
+    *, tokenizer: str, approximate: bool, reason: str | None = None
+) -> EnvironmentArtifact:
     versions: dict[str, str] = {}
     for name in TRACKED_PACKAGES:
         try:

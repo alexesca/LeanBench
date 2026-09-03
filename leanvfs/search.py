@@ -22,9 +22,7 @@ def split_identifier(term: str) -> list[str]:
     for chunk in re.split(r"[_\-.]+", term):
         if not chunk:
             continue
-        parts.extend(
-            p for p in re.findall(r"[A-Z]+(?![a-z])|[A-Z][a-z0-9]*|[a-z0-9]+", chunk) if p
-        )
+        parts.extend(p for p in re.findall(r"[A-Z]+(?![a-z])|[A-Z][a-z0-9]*|[a-z0-9]+", chunk) if p)
     return parts
 
 
@@ -124,9 +122,7 @@ class SearchEngine:
                     parts = {p.lower() for p in split_identifier(symbol)}
                     overlap = len(parts & termset)
                     if overlap:
-                        score += self._weight("exact_symbol", 4.0) * (
-                            overlap / max(len(parts), 1)
-                        )
+                        score += self._weight("exact_symbol", 4.0) * (overlap / max(len(parts), 1))
                         matched.append("symbol_parts")
             if qualified and any(t in qualified.lower() for t in termset):
                 score += self._weight("qualified_symbol", 3.0) * 0.5
@@ -209,5 +205,4 @@ class SearchEngine:
                     "line_end": sym["line_end"],
                     "stable_key": sym["stable_key"],
                 }
-        return {"symbol": None, "kind": "file", "line_start": 0, "line_end": 0,
-                "stable_key": ""}
+        return {"symbol": None, "kind": "file", "line_start": 0, "line_end": 0, "stable_key": ""}

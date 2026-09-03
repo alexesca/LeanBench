@@ -98,7 +98,7 @@ class Tag:
 
     def as_ctags_line(self) -> str:
         """The tag file line the real binary would write (used for index sizing)."""
-        fields = [self.name, self.path, f"{self.line};\"", self.kind_name]
+        fields = [self.name, self.path, f'{self.line};"', self.kind_name]
         fields.append(f"line:{self.line}")
         fields.append(f"end:{self.end}")
         if self.scope and self.scope_kind:
@@ -236,9 +236,7 @@ def generate_tags(path: str, lines: tuple[str, ...]) -> list[Tag]:
         from_match = _FROM_RE.match(line)
         if from_match is not None:
             module = from_match.group("module")
-            tags.append(
-                Tag(module, path, number, number, "i", None, None, None, None)
-            )
+            tags.append(Tag(module, path, number, number, "i", None, None, None, None))
             for name, alias in _split_import_names(from_match.group("body")):
                 tags.append(
                     Tag(alias or name, path, number, number, "x", module, "module", None, None)

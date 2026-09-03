@@ -80,9 +80,7 @@ def evaluate(
     # --- capability assertion, before any work is done (build spec §3.2) -------------
     # Gate on what this track will actually issue, not on the suite's general-purpose
     # declaration: see `required_for_probes` for why the distinction is load-bearing.
-    required = required_for_probes(
-        probe.op for task in suite.tasks for probe in task.probes
-    )
+    required = required_for_probes(probe.op for task in suite.tasks for probe in task.probes)
     assert_capabilities(
         required=required,
         declared=set(manifest.declared_capabilities),
@@ -180,12 +178,8 @@ def evaluate(
     wall_ms = (time.perf_counter() - wall_start) * 1000.0
     precision = config.get_int("report.float_precision")
 
-    aggregate = aggregate_tasks(
-        [m.mean for m in task_metrics], precision=precision
-    )
-    worst_aggregate = aggregate_tasks(
-        [m.worst for m in task_metrics], precision=precision
-    )
+    aggregate = aggregate_tasks([m.mean for m in task_metrics], precision=precision)
+    worst_aggregate = aggregate_tasks([m.worst for m in task_metrics], precision=precision)
     for key, value in worst_aggregate.items():
         aggregate[f"worst_{key}"] = value
 
@@ -211,9 +205,7 @@ def evaluate(
     headline = {
         "primary_metric": config.get_str("retrieval.primary_metric"),
         "mean": aggregate.get(config.get_str("retrieval.primary_metric"), 0.0),
-        "worst_case": aggregate.get(
-            f"worst_{config.get_str('retrieval.primary_metric')}", 0.0
-        ),
+        "worst_case": aggregate.get(f"worst_{config.get_str('retrieval.primary_metric')}", 0.0),
         "tokens_returned_total": tokens_total,
         "brittle_tasks": sorted(m.task_id for m in task_metrics if m.brittle),
         "prepare_ms": round(prepare_ms, 2),

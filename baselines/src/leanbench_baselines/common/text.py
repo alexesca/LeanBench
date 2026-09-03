@@ -13,11 +13,60 @@ _CAMEL_RE = re.compile(r"[A-Z]+(?![a-z])|[A-Z][a-z0-9]*|[a-z0-9]+")
 
 STOPWORDS: frozenset[str] = frozenset(
     {
-        "a", "an", "and", "are", "as", "at", "be", "by", "can", "did", "do", "does",
-        "for", "from", "get", "gets", "has", "have", "how", "i", "if", "in", "into", "is",
-        "it", "its", "of", "on", "or", "s", "that", "the", "their", "them", "then",
-        "there", "these", "this", "to", "use", "used", "using", "was", "we", "what",
-        "when", "where", "which", "who", "why", "will", "with", "you", "your",
+        "a",
+        "an",
+        "and",
+        "are",
+        "as",
+        "at",
+        "be",
+        "by",
+        "can",
+        "did",
+        "do",
+        "does",
+        "for",
+        "from",
+        "get",
+        "gets",
+        "has",
+        "have",
+        "how",
+        "i",
+        "if",
+        "in",
+        "into",
+        "is",
+        "it",
+        "its",
+        "of",
+        "on",
+        "or",
+        "s",
+        "that",
+        "the",
+        "their",
+        "them",
+        "then",
+        "there",
+        "these",
+        "this",
+        "to",
+        "use",
+        "used",
+        "using",
+        "was",
+        "we",
+        "what",
+        "when",
+        "where",
+        "which",
+        "who",
+        "why",
+        "will",
+        "with",
+        "you",
+        "your",
     }
 )
 
@@ -52,10 +101,12 @@ def query_symbol_candidates(query: str) -> list[str]:
     out: list[str] = []
     seen: set[str] = set()
     for raw in re.findall(r"[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*", query):
-        if "." in raw or "_" in raw or (raw[:1].isupper() and raw.lower() != raw):
-            if raw not in seen:
-                seen.add(raw)
-                out.append(raw)
+        looks_like_identifier = (
+            "." in raw or "_" in raw or (raw[:1].isupper() and raw.lower() != raw)
+        )
+        if looks_like_identifier and raw not in seen:
+            seen.add(raw)
+            out.append(raw)
     return out
 
 

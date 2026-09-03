@@ -16,8 +16,10 @@ class DebugRenderer:
         lines = [
             "@lvfs 1 debug",
             f"@file {view.path}",
-            f"lang={view.language} class={view.file_class} lines={view.line_count} "
-            f"parse={view.parse_state}",
+            (
+                f"lang={view.language} class={view.file_class} "
+                f"lines={view.line_count} parse={view.parse_state}"
+            ),
         ]
         items: list[BudgetItem] = []
         for kind in sorted(view.file_facts):

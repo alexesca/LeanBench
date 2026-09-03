@@ -211,8 +211,10 @@ class SqlSymbolIndex:
 
         scope = build_import_scope(
             path,
-            [(r["module"], r["alias"], r["names"], int(r["is_relative"]), int(r["level"]))
-             for r in rows],
+            [
+                (r["module"], r["alias"], r["names"], int(r["is_relative"]), int(r["level"]))
+                for r in rows
+            ],
         )
         self._scope_cache[path] = scope
         return scope

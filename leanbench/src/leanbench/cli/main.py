@@ -12,10 +12,9 @@ import platform
 import shutil
 import sys
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import typer
-
 from leanbench.artifacts import ARTIFACT_NAMES, read_json
 from leanbench.config import parse_cli_overrides, resolve_config
 from leanbench.corpus import load_corpus
@@ -25,7 +24,6 @@ from leanbench.scoring.compare import compare_runs
 from leanbench.scoring.task_rules import (
     discrimination_index,
     informative_fraction,
-    is_informative,
     triage_flags,
 )
 from leanbench.tasks import find_suite, load_suite, validate_suite
@@ -58,9 +56,9 @@ def evaluate_cmd(
     candidate: Path = typer.Option(..., "--candidate", help="Path to leanbench-candidate.toml"),
     suite: str = typer.Option(..., "--suite", help="Suite name or path"),
     track: str = typer.Option("retrieval", "--track", help="retrieval | agent | both"),
-    runs_dir: Optional[Path] = typer.Option(None, "--runs-dir"),
-    repo: Optional[Path] = typer.Option(None, "--repo", help="Override the repository path"),
-    run_id_seed: Optional[str] = typer.Option(None, "--run-id-seed", help="Deterministic run id"),
+    runs_dir: Path | None = typer.Option(None, "--runs-dir"),
+    repo: Path | None = typer.Option(None, "--repo", help="Override the repository path"),
+    run_id_seed: str | None = typer.Option(None, "--run-id-seed", help="Deterministic run id"),
     set_: list[str] = typer.Option([], "--set", help="Config override key=value"),
 ) -> None:
     """Run a suite against a candidate and write an immutable run directory."""
@@ -85,7 +83,9 @@ def evaluate_cmd(
     marker = "~" if summary.tokenizer_approximate else ""
     _echo(f"run {result.run_id}   {summary.candidate} on {summary.suite}   [{summary.status}]")
     _echo(f"  tasks            {summary.tasks_scored}/{summary.task_count}")
-    _echo(f"  {head['primary_metric']:<16s} {head['mean']:.4f}  (worst-case {head['worst_case']:.4f})")
+    _echo(
+        f"  {head['primary_metric']:<16s} {head['mean']:.4f}  (worst-case {head['worst_case']:.4f})"
+    )
     _echo(f"  tokens returned  {marker}{head['tokens_returned_total']}")
     _echo(f"  brittle tasks    {len(head['brittle_tasks'])}")
     if summary.degraded:
@@ -157,8 +157,9 @@ def tasks_validate(suite: str = typer.Argument(...)) -> None:
     warnings = [i for i in issues if i.severity != "error"]
     for issue in sorted(issues, key=lambda i: (i.severity, i.task_id, i.code)):
         colour = typer.colors.RED if issue.severity == "error" else typer.colors.YELLOW
-        typer.secho(f"{issue.severity:<7} {issue.task_id:<20} {issue.code}: {issue.message}",
-                    fg=colour)
+        typer.secho(
+            f"{issue.severity:<7} {issue.task_id:<20} {issue.code}: {issue.message}", fg=colour
+        )
     _echo(f"{len(loaded.tasks)} tasks, {len(errors)} errors, {len(warnings)} warnings")
     if errors:
         raise typer.Exit(code=1)
@@ -171,10 +172,16 @@ def tasks_inspect(suite: str = typer.Argument(...), task_id: str = typer.Argumen
     for task in loaded.tasks:
         if task.id != task_id:
             continue
-        _echo(f"{task.id}  [{task.category} / {task.difficulty}]  {task.repository}@{task.commit[:12]}")
+        _echo(
+            f"{task.id}  [{task.category} / {task.difficulty}]  "
+            f"{task.repository}@{task.commit[:12]}"
+        )
         _echo(f"prompt: {task.prompt.strip()}")
         for probe in task.probes:
-            _echo(f"  probe[{probe.paraphrase_id}] {probe.op} {json.dumps(probe.args, sort_keys=True)}")
+            _echo(
+                f"  probe[{probe.paraphrase_id}] {probe.op} "
+                f"{json.dumps(probe.args, sort_keys=True)}"
+            )
         _echo(f"gold.files   {task.gold.files}")
         _echo(f"gold.symbols {task.gold.symbols}")
         _echo(f"gold.tests   {task.gold.tests}")
@@ -246,8 +253,10 @@ def tasks_triage(
         target.write_text(
             json.dumps(
                 {"informative_task_rate": round(fraction, 4), "tasks": report},
-                indent=2, sort_keys=True,
-            ) + "\n",
+                indent=2,
+                sort_keys=True,
+            )
+            + "\n",
             encoding="utf-8",
         )
         _echo(f"wrote {target}")
@@ -262,8 +271,10 @@ def tasks_triage(
 
 
 @app.command()
-def report(run_id: Path = typer.Argument(..., help="Run directory"),
-           as_json: bool = typer.Option(False, "--json")) -> None:
+def report(
+    run_id: Path = typer.Argument(..., help="Run directory"),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
     """Print a run's summary. Shaped for an optimization agent under --json."""
     summary = read_json(run_id, "summary.json")
     metrics = read_json(run_id, "metrics.json")
@@ -276,27 +287,32 @@ def report(run_id: Path = typer.Argument(..., help="Run directory"),
             metrics.get("retrieval_tasks", []),
             key=lambda t: t["mean"].get("ndcg_at_10", 0.0),
         )[:10]
-        _echo(json.dumps(
-            {
-                "score": summary["headline"]["mean"],
-                "dimensions": metrics.get("retrieval_aggregate", {}),
-                "weak_categories": [t["task_id"] for t in weak],
-                "largest_token_costs": [
-                    {"task_id": t["task_id"], "tokens": t["tokens_returned_total"]}
-                    for t in tasks[:10]
-                ],
-                "brittle_tasks": summary["headline"]["brittle_tasks"],
-                "suite_health": {
-                    "infra_failure_rate": summary["infrastructure_failure_rate"],
-                    "degraded": summary["degraded"],
+        _echo(
+            json.dumps(
+                {
+                    "score": summary["headline"]["mean"],
+                    "dimensions": metrics.get("retrieval_aggregate", {}),
+                    "weak_categories": [t["task_id"] for t in weak],
+                    "largest_token_costs": [
+                        {"task_id": t["task_id"], "tokens": t["tokens_returned_total"]}
+                        for t in tasks[:10]
+                    ],
+                    "brittle_tasks": summary["headline"]["brittle_tasks"],
+                    "suite_health": {
+                        "infra_failure_rate": summary["infrastructure_failure_rate"],
+                        "degraded": summary["degraded"],
+                    },
+                    "tokenizer": summary["tokenizer"],
+                    "tokenizer_approximate": summary["tokenizer_approximate"],
                 },
-                "tokenizer": summary["tokenizer"],
-                "tokenizer_approximate": summary["tokenizer_approximate"],
-            },
-            indent=2, sort_keys=True,
-        ))
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return
-    _echo(f"{summary['run_id']}  {summary['candidate']} on {summary['suite']}  [{summary['status']}]")
+    _echo(
+        f"{summary['run_id']}  {summary['candidate']} on {summary['suite']}  [{summary['status']}]"
+    )
     for key, value in sorted(metrics.get("retrieval_aggregate", {}).items()):
         _echo(f"  {key:<28} {value:.4f}")
     missing = [n for n in ARTIFACT_NAMES if not (Path(run_id) / n).exists()]
@@ -315,19 +331,26 @@ def compare(run_a: Path = typer.Argument(...), run_b: Path = typer.Argument(...)
     scores_a = {t["task_id"]: t["mean"].get(metric, 0.0) for t in a_metrics["retrieval_tasks"]}
     scores_b = {t["task_id"]: t["mean"].get(metric, 0.0) for t in b_metrics["retrieval_tasks"]}
     result = compare_runs(
-        scores_a, scores_b,
+        scores_a,
+        scores_b,
         degraded=bool(a_summary["degraded"] or b_summary["degraded"]),
-        tokenizer_a=a_summary["tokenizer"], tokenizer_b=b_summary["tokenizer"],
+        tokenizer_a=a_summary["tokenizer"],
+        tokenizer_b=b_summary["tokenizer"],
     )
     _echo(f"{a_metrics['candidate']} vs {b_metrics['candidate']}   metric={metric}  n={result.n}")
-    _echo(f"  {result.mean_a:.4f} -> {result.mean_b:.4f}   delta {-result.delta:+.4f}   p={result.p_value:.4f}")
+    _echo(
+        f"  {result.mean_a:.4f} -> {result.mean_b:.4f}   "
+        f"delta {-result.delta:+.4f}   p={result.p_value:.4f}"
+    )
     if not result.comparable:
         typer.secho(f"  NOT COMPARABLE: {result.reason}", fg=typer.colors.RED)
         raise typer.Exit(code=1)
     # The retrieval track is deterministic, so a non-zero delta is real by construction.
     # Stochastic dimensions must not reach this path without a noise profile.
-    verdict = "IMPROVED" if result.p_value < 0.05 and result.delta < 0 else (
-        "REGRESSED" if result.p_value < 0.05 and result.delta > 0 else "NO CONCLUSION"
+    verdict = (
+        "IMPROVED"
+        if result.p_value < 0.05 and result.delta < 0
+        else ("REGRESSED" if result.p_value < 0.05 and result.delta > 0 else "NO CONCLUSION")
     )
     colour = {"IMPROVED": typer.colors.GREEN, "REGRESSED": typer.colors.RED}.get(
         verdict, typer.colors.YELLOW

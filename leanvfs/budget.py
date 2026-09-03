@@ -11,14 +11,15 @@ authoritative for scoring.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Sequence
+from typing import Any
 
 PRIORITY_LADDER = {
     0: "P0 signatures/types/locations/public API/schema/security+business invariants/"
-       "test-enforced behavior",
+    "test-enforced behavior",
     1: "P1 important calls/side effects/exceptions/module docs/routes/architecture "
-       "decisions/E2E behavior",
+    "decisions/E2E behavior",
     2: "P2 imports/keywords/fixtures/mocks/useful docs/rationale comments",
     3: "P3 ordinary comments/secondary metadata",
     4: "P4 boilerplate/noise",
@@ -130,9 +131,7 @@ def admit(
 def _drop(report: BudgetReport, item: BudgetItem, cost: int) -> None:
     report.dropped[item.kind] = report.dropped.get(item.kind, 0) + 1
     report.dropped_tokens[item.kind] = report.dropped_tokens.get(item.kind, 0) + cost
-    report.dropped_by_priority[item.priority] = (
-        report.dropped_by_priority.get(item.priority, 0) + 1
-    )
+    report.dropped_by_priority[item.priority] = report.dropped_by_priority.get(item.priority, 0) + 1
 
 
 def context_order(cfg: Any) -> list[str]:
@@ -140,8 +139,17 @@ def context_order(cfg: Any) -> list[str]:
     order = cfg.get("budget.context_order.order")
     if isinstance(order, list):
         return [str(x) for x in order]
-    return ["exception", "side_effect", "invariant", "security_note", "test_expectation",
-            "call", "documentation", "keyword", "type_use"]
+    return [
+        "exception",
+        "side_effect",
+        "invariant",
+        "security_note",
+        "test_expectation",
+        "call",
+        "documentation",
+        "keyword",
+        "type_use",
+    ]
 
 
 def per_kind_caps(cfg: Any) -> dict[str, int]:

@@ -79,8 +79,13 @@ class RunStore:
                (run_id, task_id, track, failed, repository_tokens)
                VALUES (?, ?, ?, ?, ?)""",
             [
-                (run_id, r["task_id"], r["track"], int(bool(r.get("failed"))),
-                 int(r.get("repository_tokens", 0)))
+                (
+                    run_id,
+                    r["task_id"],
+                    r["track"],
+                    int(bool(r.get("failed"))),
+                    int(r.get("repository_tokens", 0)),
+                )
                 for r in rows
             ],
         )
@@ -88,7 +93,8 @@ class RunStore:
 
     def record_metrics(self, run_id: str, scope: str, metrics: dict[str, float]) -> None:
         self._conn.executemany(
-            "INSERT OR REPLACE INTO summary_metrics (run_id, scope, metric, value) VALUES (?,?,?,?)",
+            "INSERT OR REPLACE INTO summary_metrics (run_id, scope, metric, value) "
+            "VALUES (?,?,?,?)",
             [(run_id, scope, key, float(value)) for key, value in sorted(metrics.items())],
         )
         self._conn.commit()

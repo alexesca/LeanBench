@@ -7,9 +7,10 @@ oversized files, non-UTF8 bytes, files that vanish mid-walk.
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any
 
 from .globs import any_match, glob_match
 
@@ -40,10 +41,8 @@ def classify(rel_path: str, cfg: Any, head: bytes = b"") -> str:
     """First matching rule wins; generated-marker sniffing overrides."""
     markers = cfg.get("classification.generated_markers", []) or []
     if head:
-        try:
-            text = head.decode("utf-8", "replace")
-        except Exception:  # pragma: no cover - decode with replace never raises
-            text = ""
+        # `errors="replace"` cannot raise, so no guard is needed here.
+        text = head.decode("utf-8", "replace")
         if any(m in text for m in markers):
             return "generated"
     rules = cfg.get("classification.rules", []) or []

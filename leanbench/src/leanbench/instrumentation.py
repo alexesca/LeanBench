@@ -149,8 +149,9 @@ class Recorder:
         )
 
 
-def reconstruct_token_usage(events: list[dict[str, Any]], *, run_id: str, tokenizer: str,
-                            approximate: bool) -> TokenUsage:
+def reconstruct_token_usage(
+    events: list[dict[str, Any]], *, run_id: str, tokenizer: str, approximate: bool
+) -> TokenUsage:
     """Rebuild `token-usage.json` from `events.jsonl` alone (gate P5)."""
     rows = [
         {

@@ -50,11 +50,7 @@ def classify_error_response(code: str, *, capability_declared: bool) -> str | No
     """Classification for a well-formed `status: "error"` response, or None when the
     response is simply a negative answer rather than a failure."""
     if code == "unsupported_op":
-        return (
-            "candidate_protocol_error"
-            if capability_declared
-            else "unsupported_capability"
-        )
+        return "candidate_protocol_error" if capability_declared else "unsupported_capability"
     if code in WELL_BEHAVED_ERROR_CODES:
         return None
     return "invalid_response"

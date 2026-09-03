@@ -26,19 +26,6 @@ where = ["src"]
 [tool.setuptools.package-data]
 leanbench = ["config/*.toml"]
 
-[tool.ruff]
-line-length = 100
-target-version = "py310"
-src = ["src", "tests"]
-extend-exclude = ["fixtures/mini-repo"]
-
-[tool.ruff.lint]
-select = ["E", "F", "W", "I", "B", "UP", "C4", "SIM", "RET", "ARG", "PTH", "E722", "T20"]
-ignore = ["B008", "SIM108", "RET504"]
-
-[tool.ruff.lint.per-file-ignores]
-"tests/*" = ["ARG001", "ARG002"]
-"fixtures/fake-candidate/*" = ["T201"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

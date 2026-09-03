@@ -46,9 +46,7 @@ class CandidatePort(Protocol):
 
     def prepare(self, path: str, commit: str) -> dict[str, Any]: ...
 
-    def call(
-        self, op: str, args: dict[str, Any], *, task_id: str | None = None
-    ) -> dict[str, Any]:
+    def call(self, op: str, args: dict[str, Any], *, task_id: str | None = None) -> dict[str, Any]:
         """Terminal `result` for a successful op. Raises a classified LeanBenchError
         for every failure mode in PROTOCOL.md §7."""
 

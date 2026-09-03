@@ -41,7 +41,7 @@ KNOWN_STATUSES = frozenset({"ok", "error", "indexing"})
 class CandidateResponse:
     """A successful terminal response plus everything LeanBench measured about it."""
 
-    __slots__ = ("op", "request_id", "result", "meta", "latency_ms", "serialized", "status", "code")
+    __slots__ = ("code", "latency_ms", "meta", "op", "request_id", "result", "serialized", "status")
 
     def __init__(
         self,
@@ -116,16 +116,15 @@ class SubprocessCandidate:
     def start(self) -> None:
         self._transport.start()
         self._monitor = ResourceMonitor(
-            self._transport.pid, interval_s=self.config.get_float("candidate.resource_sample_interval_s")
+            self._transport.pid,
+            interval_s=self.config.get_float("candidate.resource_sample_interval_s"),
         )
         self._monitor.start()
         self._started = True
         self._emit("candidate_started", pid=self._transport.pid, command=self._command_list())
         # Startup probe: the first round trip must complete inside `startup_s`. This is
         # what turns "crashes immediately" and "prints a banner" into distinct verdicts.
-        self._request(
-            "get_stats", {}, timeout_s=self.manifest.timeouts.startup_s, phase="startup"
-        )
+        self._request("get_stats", {}, timeout_s=self.manifest.timeouts.startup_s, phase="startup")
 
     def _command_list(self) -> list[str]:
         return [self.manifest.runtime.command, *self.manifest.runtime.args]
@@ -245,7 +244,9 @@ class SubprocessCandidate:
         try:
             self._transport.send(payload)
         except CandidateCrash as exc:
-            self._record_call(request_id, task_id, op, args, "crash", None, started, 0, 0, "candidate_crash")
+            self._record_call(
+                request_id, task_id, op, args, "crash", None, started, 0, 0, "candidate_crash"
+            )
             raise self._crash(str(exc), task_id=task_id, op=op) from exc
 
         envelope = self._await_terminal(request_id, timeout_s, op=op, task_id=task_id)
@@ -258,15 +259,26 @@ class SubprocessCandidate:
             )
             serialized = canonical_json({"error": envelope.code, "message": envelope.message})
             self._record_call(
-                request_id, task_id, op, args, "error", envelope.code, started,
-                len(serialized.encode("utf-8")), 0, classification,
+                request_id,
+                task_id,
+                op,
+                args,
+                "error",
+                envelope.code,
+                started,
+                len(serialized.encode("utf-8")),
+                0,
+                classification,
             )
             if classification is not None:
                 raise error_for(
                     "unsupported_op_for_declared_capability"
                     if classification == "candidate_protocol_error"
-                    else ("op_not_declared" if classification == "unsupported_capability"
-                          else "response_schema_violation"),
+                    else (
+                        "op_not_declared"
+                        if classification == "unsupported_capability"
+                        else "response_schema_violation"
+                    ),
                     f"{op}: candidate returned error {envelope.code!r}: {envelope.message}",
                     task_id=task_id,
                     op=op,
@@ -293,8 +305,18 @@ class SubprocessCandidate:
             status="ok",
         )
         self._record_call(
-            request_id, task_id, op, args, "ok", None, started, response.bytes_returned, 0, None,
-            truncated=envelope.meta.truncated, index_state=envelope.meta.index_state,
+            request_id,
+            task_id,
+            op,
+            args,
+            "ok",
+            None,
+            started,
+            response.bytes_returned,
+            0,
+            None,
+            truncated=envelope.meta.truncated,
+            index_state=envelope.meta.index_state,
         )
         return response
 

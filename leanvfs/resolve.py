@@ -18,8 +18,9 @@ reference is never dropped for being unresolvable.
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Any, Iterable, Sequence
+from collections.abc import Iterable, Sequence
+from dataclasses import dataclass
+from typing import Any
 
 from .model import UnresolvedRef
 
@@ -56,14 +57,18 @@ class ResolvedEdge:
     line: int
 
     def sort_key(self) -> tuple:
-        return (self.source_symbol_id, self.kind, self.target_symbol_id or 0,
-                self.target_external, self.line)
+        return (
+            self.source_symbol_id,
+            self.kind,
+            self.target_symbol_id or 0,
+            self.target_external,
+            self.line,
+        )
 
 
 def module_name_for(rel_path: str) -> str:
-    stem = rel_path[:-3] if rel_path.endswith(".py") else rel_path
-    if stem.endswith(".pyi"):
-        stem = stem[:-4]
+    stem = rel_path.removesuffix(".py")
+    stem = stem.removesuffix(".pyi")
     parts = [p for p in stem.split("/") if p]
     if parts and parts[-1] == "__init__":
         parts.pop()
@@ -117,8 +122,9 @@ class Resolver:
         self.max_calls = int(cfg.get("calls.max_per_symbol", 10))
 
     # -- one reference ---------------------------------------------------
-    def resolve(self, ref: UnresolvedRef, source_symbol_id: int,
-                source_file_id: int) -> tuple[list[ResolvedEdge], bool]:
+    def resolve(
+        self, ref: UnresolvedRef, source_symbol_id: int, source_file_id: int
+    ) -> tuple[list[ResolvedEdge], bool]:
         """Return (edges, resolved). `resolved` is False for R4."""
         idx = self.index
         path = ref.source_file
@@ -207,8 +213,15 @@ class Resolver:
         )
 
     # -- helpers ---------------------------------------------------------
-    def _edge(self, ref: UnresolvedRef, sid: int, fid: int, target: SymInfo, tier: str,
-              conf: float | None = None) -> ResolvedEdge:
+    def _edge(
+        self,
+        ref: UnresolvedRef,
+        sid: int,
+        fid: int,
+        target: SymInfo,
+        tier: str,
+        conf: float | None = None,
+    ) -> ResolvedEdge:
         return ResolvedEdge(
             kind=ref.kind,
             source_symbol_id=sid,
@@ -233,8 +246,9 @@ class Resolver:
     def _resolve_path_like(self, raw: str) -> SymInfo | None:
         return self.index.resolve_path_like(raw)
 
-    def _resolve_import(self, ref: UnresolvedRef, sid: int,
-                        fid: int) -> tuple[list[ResolvedEdge], bool]:
+    def _resolve_import(
+        self, ref: UnresolvedRef, sid: int, fid: int
+    ) -> tuple[list[ResolvedEdge], bool]:
         module = ref.name
         level = ref.arity if ref.arity and ref.arity > 0 else 0
         path = ref.source_file
@@ -314,5 +328,5 @@ def _class_context(qualified_name: str, kind: str) -> str:
 def tier_rates(counts: dict[str, int]) -> dict[str, float]:
     total = sum(counts.values())
     if not total:
-        return {t: 0.0 for t in ("R0", "R1", "R2", "R3", "R4")}
+        return dict.fromkeys(("R0", "R1", "R2", "R3", "R4"), 0.0)
     return {t: round(counts.get(t, 0) / total, 4) for t in ("R0", "R1", "R2", "R3", "R4")}

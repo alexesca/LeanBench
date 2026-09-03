@@ -186,7 +186,7 @@ class BaseServer:
             }
         )
 
-    def op_get_stats(self, args: dict[str, Any]) -> Payload:  # noqa: ARG002
+    def op_get_stats(self, args: dict[str, Any]) -> Payload:
         header: dict[str, Any] = {
             "candidate": self.NAME,
             "version": self.VERSION,
@@ -268,7 +268,7 @@ class BaseServer:
         except (OSError, RecursionError, MemoryError) as exc:
             self._write(out, self._error(req_id, "internal", f"{type(exc).__name__}: {exc}"))
             return True
-        except Exception as exc:  # classified, never swallowed
+        except Exception as exc:  # noqa: BLE001 — classified, never swallowed
             sys.stderr.write(f"[{self.NAME}] internal error on op={op}: {exc!r}\n")
             self._write(out, self._error(req_id, "internal", f"{type(exc).__name__}: {exc}"))
             return True
@@ -287,9 +287,7 @@ class BaseServer:
         return op != "shutdown"
 
     @staticmethod
-    def _error(
-        req_id: str, code: str, message: str, *, retryable: bool = False
-    ) -> dict[str, Any]:
+    def _error(req_id: str, code: str, message: str, *, retryable: bool = False) -> dict[str, Any]:
         return {
             "id": req_id,
             "status": "error",

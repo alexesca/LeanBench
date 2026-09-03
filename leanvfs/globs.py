@@ -54,9 +54,7 @@ def glob_match(path: str, pattern: str) -> bool:
         return True
     # A bare directory prefix pattern like "tests/**" should also match "tests/a.py"
     # even when written without a trailing slash form.
-    if pattern.endswith("/**") and (path == pattern[:-3] or path.startswith(pattern[:-2])):
-        return True
-    return False
+    return pattern.endswith("/**") and (path == pattern[:-3] or path.startswith(pattern[:-2]))
 
 
 def any_match(path: str, patterns: list[str]) -> bool:

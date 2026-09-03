@@ -1,0 +1,20 @@
+name        = "mini"
+version     = "1.0.0"
+description = """
+Self-test suite over the vendored mini-repo. Small, fast and deterministic: it exists
+so that the retrieval track, the graders and the artifact writer can be exercised in CI
+with no network, no LLM and no real corpus. It is not a measurement of anything.
+"""
+repository  = "mini-repo"
+commit      = "fixture"
+required_capabilities = ["search"]
+informative_task_rate_threshold = 0.60
+
+[scoring]
+version              = "v1"
+correctness          = 0.45
+context_efficiency   = 0.25
+retrieval_navigation = 0.10
+incremental          = 0.10
+cold_index           = 0.05
+footprint            = 0.05

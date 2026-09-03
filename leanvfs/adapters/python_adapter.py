@@ -8,7 +8,8 @@ Return typing prefers the declared annotation; absent one it falls back to a che
 from __future__ import annotations
 
 import re
-from typing import Any, Iterable
+from collections.abc import Iterable
+from typing import Any, ClassVar
 
 from ..model import (
     FileExtraction,
@@ -20,6 +21,7 @@ from ..model import (
     disambiguate_overload,
     make_stable_key,
 )
+from ..registry import FactKindError
 from .base import ExtractionContext
 from .tokens import structure_hash_from_tree, ts_parser
 
@@ -27,6 +29,7 @@ _CAP = re.compile(r"^[A-Z][A-Za-z0-9_]*$")
 _ALLCAPS = re.compile(r"^[A-Z][A-Z0-9_]*$")
 _DUNDER = re.compile(r"^__\w+__$")
 _WORD = re.compile(r"[A-Za-z][A-Za-z0-9]+")
+
 
 def _text(src: bytes, node: Any) -> str:
     return src[node.start_byte : node.end_byte].decode("utf-8", "replace")
@@ -42,9 +45,8 @@ def _range(node: Any) -> SourceRange:
 
 
 def module_name_for(rel_path: str) -> str:
-    stem = rel_path[:-3] if rel_path.endswith(".py") else rel_path
-    if stem.endswith(".pyi"):
-        stem = stem[:-4]
+    stem = rel_path.removesuffix(".py")
+    stem = stem.removesuffix(".pyi")
     parts = [p for p in stem.split("/") if p]
     if parts and parts[-1] == "__init__":
         parts.pop()
@@ -122,7 +124,7 @@ class _State:
     def fact(self, kind: str, value: str, **kw: Any) -> None:
         try:
             self.ext.facts.append(self.reg.make(kind, value, file_path=self.path, **kw))
-        except Exception as exc:  # value violated the registry grammar
+        except FactKindError as exc:  # value violated the registry grammar
             self.ext.diagnostics.append(f"fact-rejected:{kind}:{exc}")
 
     def kw(self, term: str, source: str, symbol_key: str | None) -> None:
@@ -156,7 +158,7 @@ class _State:
         self.collect_exports(root)
 
         mod_key = self.key("module", self.module or self.path, None, None)
-        doc, doc_node = self.docstring(root)
+        doc, _doc_node = self.docstring(root)
         mod_sym = Symbol(
             stable_key=mod_key,
             name=self.module.rsplit(".", 1)[-1] if self.module else self.path,
@@ -172,8 +174,9 @@ class _State:
         self.symbol_spans.append((root.start_byte, root.end_byte, mod_key))
         if doc:
             self.emit_doc_facts(doc, mod_key, elevated=True)
-        self.kw_split(self.module.rsplit(".", 1)[-1] if self.module else self.path,
-                      "module_name", mod_key)
+        self.kw_split(
+            self.module.rsplit(".", 1)[-1] if self.module else self.path, "module_name", mod_key
+        )
         if self.exports:
             for name in sorted(self.exports):
                 self.fact("framework_metadata", f"export={name}", symbol_key=mod_key)
@@ -203,14 +206,23 @@ class _State:
     def classify_comment(self, raw: str) -> str:
         body = raw.lstrip("#").strip()
         low = body.lower()
-        for klass in ("security", "invariant", "warning", "performance", "business_rule",
-                      "rationale", "workaround", "fixme", "todo"):
+        for klass in (
+            "security",
+            "invariant",
+            "warning",
+            "performance",
+            "business_rule",
+            "rationale",
+            "workaround",
+            "fixme",
+            "todo",
+        ):
             for pat in self.comment_patterns.get(klass, []):
                 if pat.search(low):
                     return klass
         return "ordinary"
 
-    _COMMENT_FACT_KIND = {
+    _COMMENT_FACT_KIND: ClassVar[dict[str, str]] = {
         "rationale": "rationale",
         "invariant": "invariant",
         "warning": "warning",
@@ -292,19 +304,36 @@ class _State:
         for line in lines[1:]:
             low = line.lower()
             if low.startswith(("raises", "raise ")):
-                self.fact("exception", line[:120], symbol_key=symbol_key,
-                          provenance="docstring", confidence=0.6)
+                self.fact(
+                    "exception",
+                    line[:120],
+                    symbol_key=symbol_key,
+                    provenance="docstring",
+                    confidence=0.6,
+                )
             elif any(w in low for w in ("must never", "must always", "never ", "always ")):
-                self.fact("invariant", line[:240], symbol_key=symbol_key,
-                          provenance="docstring", confidence=0.6)
+                self.fact(
+                    "invariant",
+                    line[:240],
+                    symbol_key=symbol_key,
+                    provenance="docstring",
+                    confidence=0.6,
+                )
             elif any(w in low for w in ("security", "credential", "unsafe")):
-                self.fact("security_note", line[:240], symbol_key=symbol_key,
-                          provenance="docstring", confidence=0.6)
+                self.fact(
+                    "security_note",
+                    line[:240],
+                    symbol_key=symbol_key,
+                    provenance="docstring",
+                    confidence=0.6,
+                )
         for word in _WORD.findall(doc.lower())[:60]:
             self.kw(word, "docstring", symbol_key)
 
     # -- body walk ------------------------------------------------------
-    def walk_body(self, node: Any, parent_key: str, qual_prefix: str, class_name: str | None) -> None:
+    def walk_body(
+        self, node: Any, parent_key: str, qual_prefix: str, class_name: str | None
+    ) -> None:
         body = node if node.type == "module" else node.child_by_field_name("body")
         if body is None:
             return
@@ -339,8 +368,13 @@ class _State:
             self.handle_import(child, parent_key)
         elif t == "expression_statement":
             self.handle_assignment(child, parent_key, qual_prefix, class_name)
-        elif t in ("if_statement", "try_statement", "with_statement", "for_statement",
-                   "while_statement"):
+        elif t in (
+            "if_statement",
+            "try_statement",
+            "with_statement",
+            "for_statement",
+            "while_statement",
+        ):
             for c in child.children:
                 if c.type == "block":
                     for g in c.children:
@@ -353,15 +387,19 @@ class _State:
             for c in node.children:
                 if c.type == "dotted_name":
                     mod = _text(self.src, c)
-                    self.ext.imports.append(
-                        ImportRecord(mod, "", (), False, 0, line)
-                    )
+                    self.ext.imports.append(ImportRecord(mod, "", (), False, 0, line))
                 elif c.type == "aliased_import":
                     mod_node = c.child_by_field_name("name") or c.children[0]
                     alias_node = c.child_by_field_name("alias") or c.children[-1]
                     self.ext.imports.append(
-                        ImportRecord(_text(self.src, mod_node), _text(self.src, alias_node),
-                                     (), False, 0, line)
+                        ImportRecord(
+                            _text(self.src, mod_node),
+                            _text(self.src, alias_node),
+                            (),
+                            False,
+                            0,
+                            line,
+                        )
                     )
         else:
             level = 0
@@ -414,8 +452,9 @@ class _State:
                 )
 
     # -- assignments ----------------------------------------------------
-    def handle_assignment(self, stmt: Any, parent_key: str, qual_prefix: str,
-                          class_name: str | None) -> None:
+    def handle_assignment(
+        self, stmt: Any, parent_key: str, qual_prefix: str, class_name: str | None
+    ) -> None:
         for a in stmt.children:
             if a.type not in ("assignment", "augmented_assignment"):
                 continue
@@ -447,8 +486,9 @@ class _State:
                 return_type=ann_text,
                 range=_range(a),
                 is_exported=name in self.exports,
-                interface_hash=_hash_iface(name, visibility_of(name), [], [], ann_text,
-                                           name in self.exports),
+                interface_hash=_hash_iface(
+                    name, visibility_of(name), [], [], ann_text, name in self.exports
+                ),
                 behavior_hash=_hash_body(self.normalized_tokens(a)),
                 doc_hash=_hash_doc("", []),
                 metadata_hash=_hash_meta([ann_text] if ann_text else []),
@@ -462,8 +502,9 @@ class _State:
                 self.emit_type_refs(ann_text, key, a.start_point[0] + 1)
 
     # -- classes --------------------------------------------------------
-    def handle_class(self, node: Any, parent_key: str, qual_prefix: str,
-                     decorators: tuple[str, ...]) -> None:
+    def handle_class(
+        self, node: Any, parent_key: str, qual_prefix: str, decorators: tuple[str, ...]
+    ) -> None:
         name_node = node.child_by_field_name("name")
         if name_node is None:
             return
@@ -493,8 +534,9 @@ class _State:
             doc=doc,
             decorators=decorators,
             is_exported=name in self.exports or not self.exports,
-            interface_hash=_hash_iface(name, visibility_of(name), bases, [], "",
-                                       name in self.exports),
+            interface_hash=_hash_iface(
+                name, visibility_of(name), bases, [], "", name in self.exports
+            ),
             behavior_hash=_hash_body(self.normalized_tokens(node, skip=doc_node)),
             doc_hash=_hash_doc(doc, self.comment_texts_in(node.start_byte, node.end_byte)),
             metadata_hash=_hash_meta(list(decorators) + bases),
@@ -504,9 +546,16 @@ class _State:
         self.kw_split(name, "class_name", key)
         self.fact("signature", sym.signature, symbol_key=key)
         for base in bases:
-            self.ref(UnresolvedRef(name=base.split(".")[-1], kind="EXTENDS",
-                                   source_symbol_key=key, source_file=self.path, line=line,
-                                   receiver=base))
+            self.ref(
+                UnresolvedRef(
+                    name=base.split(".")[-1],
+                    kind="EXTENDS",
+                    source_symbol_key=key,
+                    source_file=self.path,
+                    line=line,
+                    receiver=base,
+                )
+            )
             self.kw_split(base, "type_use", key)
         for dec in decorators:
             self.fact("framework_metadata", f"decorator={dec[:60]}", symbol_key=key)
@@ -517,9 +566,15 @@ class _State:
         self.walk_body(node, parent_key=key, qual_prefix=f"{qual}.", class_name=qual)
 
     # -- functions ------------------------------------------------------
-    def handle_function(self, node: Any, parent_key: str, qual_prefix: str,
-                        class_name: str | None, decorators: tuple[str, ...],
-                        outer: Any) -> None:
+    def handle_function(
+        self,
+        node: Any,
+        parent_key: str,
+        qual_prefix: str,
+        class_name: str | None,
+        decorators: tuple[str, ...],
+        outer: Any,
+    ) -> None:
         name_node = node.child_by_field_name("name")
         if name_node is None:
             return
@@ -560,8 +615,9 @@ class _State:
             is_async=is_async,
             decorators=decorators,
             is_exported=name in self.exports or (not self.exports and not name.startswith("_")),
-            interface_hash=_hash_iface(name, visibility_of(name), param_names, param_types,
-                                       ret, name in self.exports),
+            interface_hash=_hash_iface(
+                name, visibility_of(name), param_names, param_types, ret, name in self.exports
+            ),
             behavior_hash=_hash_body(self.normalized_tokens(node, skip=doc_node)),
             doc_hash=_hash_doc(doc, self.comment_texts_in(node.start_byte, node.end_byte)),
             metadata_hash=_hash_meta(list(decorators)),
@@ -612,38 +668,53 @@ class _State:
             if t == "identifier":
                 out.append((_text(self.src, c), "", False))
             elif t == "typed_parameter":
-                ident = next((g for g in c.children if g.type in
-                              ("identifier", "list_splat_pattern", "dictionary_splat_pattern")), None)
+                ident = next(
+                    (
+                        g
+                        for g in c.children
+                        if g.type
+                        in ("identifier", "list_splat_pattern", "dictionary_splat_pattern")
+                    ),
+                    None,
+                )
                 ty = c.child_by_field_name("type")
-                out.append((_text(self.src, ident) if ident is not None else "",
-                            _text(self.src, ty) if ty is not None else "", False))
+                out.append(
+                    (
+                        _text(self.src, ident) if ident is not None else "",
+                        _text(self.src, ty) if ty is not None else "",
+                        False,
+                    )
+                )
             elif t == "default_parameter":
                 n = c.child_by_field_name("name")
                 out.append((_text(self.src, n) if n is not None else "", "", True))
             elif t == "typed_default_parameter":
                 n = c.child_by_field_name("name")
                 ty = c.child_by_field_name("type")
-                out.append((_text(self.src, n) if n is not None else "",
-                            _text(self.src, ty) if ty is not None else "", True))
-            elif t == "list_splat_pattern":
-                out.append((_text(self.src, c), "", False))
-            elif t == "dictionary_splat_pattern":
+                out.append(
+                    (
+                        _text(self.src, n) if n is not None else "",
+                        _text(self.src, ty) if ty is not None else "",
+                        True,
+                    )
+                )
+            elif t == "list_splat_pattern" or t == "dictionary_splat_pattern":
                 out.append((_text(self.src, c), "", False))
             elif t == "keyword_separator":
                 out.append(("*", "", False))
         return [(n, ty, d) for n, ty, d in out if n]
 
     # -- body analysis --------------------------------------------------
-    def analyze_body(self, body: Any, key: str, declared_ret: str, doc_node: Any,
-                     kind: str) -> None:
-        calls: list[tuple[str, str, int, int]] = []   # (raw, receiver, arity, line)
+    def analyze_body(
+        self, body: Any, key: str, declared_ret: str, doc_node: Any, kind: str
+    ) -> None:
+        calls: list[tuple[str, str, int, int]] = []  # (raw, receiver, arity, line)
         raises: list[str] = []
         yields: list[str] = []
         returns: list[str] = []
         effects: set[str] = set()
         members: set[str] = set()
         literals: list[str] = []
-        fixtures: list[str] = []
         mocks: list[str] = []
         expectations: list[tuple[str, int]] = []
         cases: list[str] = []
@@ -668,12 +739,12 @@ class _State:
                     members.add(raw)
                 calls.append((raw, receiver, arity, node.start_point[0] + 1))
                 if raw.endswith("pytest.raises") or simple == "raises":
-                    for a in (args.named_children if args is not None else []):
+                    for a in args.named_children if args is not None else []:
                         expected_exc.append(_text(self.src, a))
                 if simple in ("patch", "object", "MagicMock", "Mock", "AsyncMock", "mock_open"):
-                    mocks.append(raw if fn.type != "attribute" else raw)
+                    mocks.append(raw)
             elif t == "raise_statement":
-                target = next((c for c in node.named_children), None)
+                target = next(iter(node.named_children), None)
                 if target is not None:
                     txt = _text(self.src, target)
                     raises.append(txt.split("(")[0].split(".")[-1])
@@ -690,10 +761,13 @@ class _State:
                 if kids:
                     returns.append(_shape_of(self.src, kids[0]))
             elif t == "assert_statement":
-                expectations.append((_text(self.src, node)[: self.comment_max],
-                                     node.start_point[0] + 1))
-            elif t == "string" and node.parent is not None and node.parent.type in (
-                "argument_list", "assignment", "list", "tuple"
+                expectations.append(
+                    (_text(self.src, node)[: self.comment_max], node.start_point[0] + 1)
+                )
+            elif (
+                t == "string"
+                and node.parent is not None
+                and node.parent.type in ("argument_list", "assignment", "list", "tuple")
             ):
                 val = _string_value(self.src, node)
                 if 3 <= len(val) <= 60:
@@ -717,23 +791,45 @@ class _State:
                 self.kw_split(simple, "call_target", key)
                 emitted += 1
             if len(self.ext.refs) < self.max_refs * 8:
-                self.ref(UnresolvedRef(name=simple, kind="CALLS", source_symbol_key=key,
-                                       source_file=self.path, line=line, receiver=receiver,
-                                       arity=arity))
+                self.ref(
+                    UnresolvedRef(
+                        name=simple,
+                        kind="CALLS",
+                        source_symbol_key=key,
+                        source_file=self.path,
+                        line=line,
+                        receiver=receiver,
+                        arity=arity,
+                    )
+                )
                 if kind == "test":
-                    self.ref(UnresolvedRef(name=simple, kind="TESTS", source_symbol_key=key,
-                                           source_file=self.path, line=line,
-                                           receiver=receiver, arity=arity))
+                    self.ref(
+                        UnresolvedRef(
+                            name=simple,
+                            kind="TESTS",
+                            source_symbol_key=key,
+                            source_file=self.path,
+                            line=line,
+                            receiver=receiver,
+                            arity=arity,
+                        )
+                    )
 
         for eff in sorted(effects):
-            self.fact("side_effect", eff, symbol_key=key, confidence=0.6,
-                      provenance="heuristic")
+            self.fact("side_effect", eff, symbol_key=key, confidence=0.6, provenance="heuristic")
         for exc in sorted(set(raises)):
             if exc:
                 self.fact("exception", exc[:60], symbol_key=key)
                 self.kw_split(exc, "exception", key)
-                self.ref(UnresolvedRef(name=exc, kind="REFERENCES", source_symbol_key=key,
-                                       source_file=self.path, line=0))
+                self.ref(
+                    UnresolvedRef(
+                        name=exc,
+                        kind="REFERENCES",
+                        source_symbol_key=key,
+                        source_file=self.path,
+                        line=0,
+                    )
+                )
         for member in sorted(members)[:20]:
             self.kw_split(member.rsplit(".", 1)[-1], "member_access", key)
         for lit in literals[:10]:
@@ -745,18 +841,33 @@ class _State:
             if yields:
                 yshapes = sorted({s for s in yields if s})
                 if yshapes:
-                    self.fact("return_shape", "yield=" + "|".join(yshapes[:3]),
-                              symbol_key=key, confidence=0.5, provenance="heuristic")
+                    self.fact(
+                        "return_shape",
+                        "yield=" + "|".join(yshapes[:3]),
+                        symbol_key=key,
+                        confidence=0.5,
+                        provenance="heuristic",
+                    )
             elif shapes:
-                self.fact("return_shape", "ret=" + "|".join(shapes[:3]),
-                          symbol_key=key, confidence=0.5, provenance="heuristic")
+                self.fact(
+                    "return_shape",
+                    "ret=" + "|".join(shapes[:3]),
+                    symbol_key=key,
+                    confidence=0.5,
+                    provenance="heuristic",
+                )
 
         if kind == "test":
             self.emit_test_facts(key, expectations, mocks, expected_exc, cases)
 
-    def emit_test_facts(self, key: str, expectations: list[tuple[str, int]],
-                        mocks: list[str], expected_exc: list[str],
-                        cases: list[str]) -> None:
+    def emit_test_facts(
+        self,
+        key: str,
+        expectations: list[tuple[str, int]],
+        mocks: list[str],
+        expected_exc: list[str],
+        cases: list[str],
+    ) -> None:
         sym = next((s for s in self.ext.symbols if s.stable_key == key), None)
         if sym is not None:
             scenario = " ".join(split_identifier(sym.name)[1:]) or sym.name
@@ -765,24 +876,40 @@ class _State:
             for pname, _ptype, _d in [(p, "", False) for p in _sig_params(sym.signature)]:
                 if pname and pname not in ("self", "cls"):
                     self.fact("test_fixture", pname, symbol_key=key, provenance="test")
-                    self.ref(UnresolvedRef(name=pname, kind="USES_FIXTURE",
-                                           source_symbol_key=key, source_file=self.path))
+                    self.ref(
+                        UnresolvedRef(
+                            name=pname,
+                            kind="USES_FIXTURE",
+                            source_symbol_key=key,
+                            source_file=self.path,
+                        )
+                    )
             for dec in sym.decorators:
                 if "parametrize" in dec:
                     self.fact("test_case", dec[:160], symbol_key=key, provenance="test")
         for text, line in expectations[:8]:
-            self.fact("test_expectation", _normalize_ws(text)[:200], symbol_key=key,
-                      provenance="test", confidence=0.9,
-                      range=SourceRange(line, line, 0, 0))
+            self.fact(
+                "test_expectation",
+                _normalize_ws(text)[:200],
+                symbol_key=key,
+                provenance="test",
+                confidence=0.9,
+                range=SourceRange(line, line, 0, 0),
+            )
         for m in sorted(set(mocks))[:6]:
             self.fact("test_mock", m[:80], symbol_key=key, provenance="test")
-            self.ref(UnresolvedRef(name=m.rsplit(".", 1)[-1], kind="MOCKS",
-                                   source_symbol_key=key, source_file=self.path))
+            self.ref(
+                UnresolvedRef(
+                    name=m.rsplit(".", 1)[-1],
+                    kind="MOCKS",
+                    source_symbol_key=key,
+                    source_file=self.path,
+                )
+            )
         for exc in sorted(set(expected_exc))[:4]:
             clean = exc.split("(")[0].split(".")[-1]
             if clean and _CAP.match(clean):
-                self.fact("exception", clean, symbol_key=key, provenance="test",
-                          confidence=0.9)
+                self.fact("exception", clean, symbol_key=key, provenance="test", confidence=0.9)
 
     # -- types ----------------------------------------------------------
     def emit_type_refs(self, annotation: str, key: str, line: int) -> None:
@@ -790,8 +917,16 @@ class _State:
             base = name.split(".")[-1]
             if base in _TYPING_NOISE or not _CAP.match(base):
                 continue
-            self.ref(UnresolvedRef(name=base, kind="USES_TYPE", source_symbol_key=key,
-                                   source_file=self.path, line=line, receiver=name))
+            self.ref(
+                UnresolvedRef(
+                    name=base,
+                    kind="USES_TYPE",
+                    source_symbol_key=key,
+                    source_file=self.path,
+                    line=line,
+                    receiver=name,
+                )
+            )
 
     # -- token normalization --------------------------------------------
     def normalized_tokens(self, node: Any, skip: Any = None) -> list[str]:
@@ -812,11 +947,33 @@ class _State:
 # --------------------------------------------------------------------------
 
 _CALL_OK = re.compile(r"^[A-Za-z_][\w.]*$")
-_TYPING_NOISE = frozenset({
-    "Optional", "Union", "List", "Dict", "Set", "Tuple", "Any", "Callable", "Iterable",
-    "Iterator", "Sequence", "Mapping", "Type", "None", "AsyncIterator", "Awaitable",
-    "Literal", "Final", "ClassVar", "Generator", "AsyncGenerator", "TypeVar", "Self",
-})
+_TYPING_NOISE = frozenset(
+    {
+        "Optional",
+        "Union",
+        "List",
+        "Dict",
+        "Set",
+        "Tuple",
+        "Any",
+        "Callable",
+        "Iterable",
+        "Iterator",
+        "Sequence",
+        "Mapping",
+        "Type",
+        "None",
+        "AsyncIterator",
+        "Awaitable",
+        "Literal",
+        "Final",
+        "ClassVar",
+        "Generator",
+        "AsyncGenerator",
+        "TypeVar",
+        "Self",
+    }
+)
 
 
 def _descend(node: Any) -> Iterable[Any]:
@@ -939,8 +1096,14 @@ def _normalize_ws(text: str) -> str:
     return " ".join(text.split())
 
 
-def _hash_iface(name: str, visibility: str, param_names: list[str], param_types: list[str],
-                ret: str, exported: bool) -> str:
+def _hash_iface(
+    name: str,
+    visibility: str,
+    param_names: list[str],
+    param_types: list[str],
+    ret: str,
+    exported: bool,
+) -> str:
     from ..hashing import digest_parts
 
     return digest_parts(

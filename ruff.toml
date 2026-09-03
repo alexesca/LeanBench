@@ -1,0 +1,34 @@
+# Workspace lint configuration. One config for the benchmark, the indexer and the
+# baselines so that a rule argued about once is settled everywhere.
+line-length = 100
+target-version = "py310"
+extend-exclude = ["corpus", "leanbench/fixtures/mini-repo", ".venv"]
+
+[lint]
+select = ["E", "F", "W", "I", "B", "UP", "C4", "SIM", "RET", "ARG", "PTH", "BLE", "PIE", "RUF"]
+ignore = [
+    "B008",    # typer expresses CLI options as call-valued defaults
+    "SIM108",  # ternaries are not always clearer than an if/else
+    "RET504",  # a named return value often *is* the documentation
+]
+
+[lint.per-file-ignores]
+# Ports are structural: an implementation must accept the arguments its Protocol
+# declares even when a particular implementation has no use for them. Renaming them
+# to `_` would make the conformance harder to read, not easier.
+"leanbench/src/leanbench/mutation.py" = ["ARG002"]
+"leanbench/src/leanbench/harness/agent.py" = ["ARG001"]
+"baselines/src/leanbench_baselines/common/server.py" = ["ARG002"]
+# The fake candidate is a standalone fixture that deliberately imports nothing of ours.
+"**/fake-candidate/main.py" = ["E501", "C416"]
+"leanbench/tests/*" = ["ARG001", "ARG002"]
+# The discovery walk uses `os` primitives on the hot path: `os.stat` and a raw `open()`
+# avoid constructing a Path per file, and cold-index throughput is a stated budget.
+"leanvfs/discover.py" = ["PTH116", "PTH119", "PTH122", "PTH123"]
+# Protocol-conforming signatures again: the server dispatches every op through one
+# shape, so some handlers legitimately ignore an argument the shape requires.
+"leanvfs/server.py" = ["ARG001", "ARG002"]
+"leanvfs/cli.py" = ["ARG001"]
+"leanvfs/adapters/python_adapter.py" = ["ARG002"]
+# Re-exports are ordered after the definitions they alias.
+"leanvfs/render/__init__.py" = ["E402"]

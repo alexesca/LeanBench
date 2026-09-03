@@ -10,9 +10,10 @@ from __future__ import annotations
 
 import math
 import re
+from collections.abc import Iterable
 from dataclasses import dataclass
 from functools import lru_cache
-from typing import Any, Iterable
+from typing import Any
 
 from .model import Fact
 
@@ -81,9 +82,10 @@ class Redactor:
     def is_secret_token(self, token: str) -> bool:
         if any(token.startswith(p) for p in self.provider_prefixes):
             return True
-        if len(token) >= self.entropy_min_length and shannon_entropy(token) > self.entropy_threshold:
-            return True
-        return False
+        return (
+            len(token) >= self.entropy_min_length
+            and shannon_entropy(token) > self.entropy_threshold
+        )
 
     def scrub_text(self, text: str) -> tuple[str, bool]:
         """Replace secret-looking substrings inside free text."""

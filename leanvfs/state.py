@@ -8,6 +8,7 @@ resync and nothing else.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import sys
@@ -70,7 +71,7 @@ def load_state(state_dir: Path) -> IndexState:
         data = json.loads(path.read_text())
     except (OSError, ValueError):
         return IndexState()
-    known = {f for f in IndexState.__dataclass_fields__}
+    known = set(IndexState.__dataclass_fields__)
     return IndexState(**{k: v for k, v in data.items() if k in known})
 
 
@@ -138,17 +139,15 @@ class Lock:
 
     def release(self) -> None:
         if self.acquired:
-            try:
+            with contextlib.suppress(OSError):  # best-effort teardown
                 self.path.unlink()
-            except OSError:  # pragma: no cover
-                pass
             self.acquired = False
 
     def __enter__(self) -> Lock:
         self.acquire()
         return self
 
-    def __exit__(self, *exc: Any) -> None:
+    def __exit__(self, *exc: object) -> None:
         self.release()
 
 

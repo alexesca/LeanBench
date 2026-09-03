@@ -72,8 +72,13 @@ class Server:
             request = json.loads(line)
         except json.JSONDecodeError as exc:
             self._write(
-                {"id": "", "status": "error", "code": "invalid_args",
-                 "message": f"malformed JSON request: {exc}", "retryable": False}
+                {
+                    "id": "",
+                    "status": "error",
+                    "code": "invalid_args",
+                    "message": f"malformed JSON request: {exc}",
+                    "retryable": False,
+                }
             )
             return
 
@@ -88,15 +93,25 @@ class Server:
             result = self.dispatch(op, args, budget, fmt)
         except ProtocolError as exc:
             self._write(
-                {"id": req_id, "status": "error", "code": exc.code,
-                 "message": exc.message, "retryable": exc.retryable}
+                {
+                    "id": req_id,
+                    "status": "error",
+                    "code": exc.code,
+                    "message": exc.message,
+                    "retryable": exc.retryable,
+                }
             )
             return
-        except Exception as exc:  # a bug in us is `internal`, never a silent wrong answer
+        except Exception as exc:  # noqa: BLE001 — a bug in us is `internal`, never a silent wrong answer
             self.log("internal error:\n" + traceback.format_exc())
             self._write(
-                {"id": req_id, "status": "error", "code": "internal",
-                 "message": f"{type(exc).__name__}: {exc}", "retryable": False}
+                {
+                    "id": req_id,
+                    "status": "error",
+                    "code": "internal",
+                    "message": f"{type(exc).__name__}: {exc}",
+                    "retryable": False,
+                }
             )
             return
 
@@ -105,7 +120,9 @@ class Server:
         meta.setdefault("elapsed_ms", round(elapsed, 3))
         self._write({"id": req_id, "status": "ok", "result": payload, "meta": meta})
 
-    def _meta(self, tokens: int, truncated: bool, dropped: dict[str, int] | None = None) -> dict[str, Any]:
+    def _meta(
+        self, tokens: int, truncated: bool, dropped: dict[str, int] | None = None
+    ) -> dict[str, Any]:
         state = self.store.index_state() if self.store else "failed"
         return {
             "tokens_approx": int(tokens),
@@ -152,9 +169,7 @@ class Server:
             payload = engine.get_dependencies(str(args.get("path", "")))
             return self._finish(payload, fmt, budget, None)
         if op == "get_references":
-            payload = engine.get_references(
-                str(args.get("symbol", "")), int(args.get("limit", 50))
-            )
+            payload = engine.get_references(str(args.get("symbol", "")), int(args.get("limit", 50)))
             return self._finish(payload, fmt, budget, None)
         if op == "get_tests":
             payload = engine.get_tests(str(args.get("symbol", "")), int(args.get("limit", 25)))
@@ -215,8 +230,7 @@ class Server:
         self.store.set_meta("source_bytes", str(result.source_bytes))
         self.engine = QueryEngine(self.store, self.cfg)
         self.log(
-            f"indexed {result.files} files, {result.symbols} symbols in "
-            f"{self.cold_index_ms:.0f}ms"
+            f"indexed {result.files} files, {result.symbols} symbols in {self.cold_index_ms:.0f}ms"
         )
         return (
             {

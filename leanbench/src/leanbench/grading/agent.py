@@ -35,9 +35,7 @@ def _mentions_path(answer_tokens: list[str], gold_path: str) -> bool:
 
 def _range_read(read_ranges: list[tuple[str, int, int]], path: str, start: int, end: int) -> bool:
     target = normalize_path(path)
-    return any(
-        normalize_path(p) == target and s <= start and e >= end for p, s, e in read_ranges
-    )
+    return any(normalize_path(p) == target and s <= start and e >= end for p, s, e in read_ranges)
 
 
 class AgentGrader:
@@ -50,7 +48,9 @@ class AgentGrader:
         }
         self.precision = config.get_int("report.float_precision")
 
-    def correctness(self, task: Task, answer: str, read_ranges: list[tuple[str, int, int]]) -> float:
+    def correctness(
+        self, task: Task, answer: str, read_ranges: list[tuple[str, int, int]]
+    ) -> float:
         tokens = TOKEN_RE.findall(answer or "")
         found: dict[str, float] = {}
         categories: dict[str, list[bool]] = {}

@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict, Field
-
 from leanbench.schemas.common import CATEGORIES, DIFFICULTIES, PARAPHRASE_IDS
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class GoldRange(BaseModel):

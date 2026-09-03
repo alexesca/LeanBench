@@ -39,9 +39,7 @@ _DEF_RE_CACHE: dict[str, re.Pattern[str]] = {}
 def _def_regex(name: str) -> re.Pattern[str]:
     cached = _DEF_RE_CACHE.get(name)
     if cached is None:
-        cached = re.compile(
-            r"^\s*(?:async\s+)?(?:def|class)\s+" + re.escape(name) + r"\s*[\(:\[]"
-        )
+        cached = re.compile(r"^\s*(?:async\s+)?(?:def|class)\s+" + re.escape(name) + r"\s*[\(:\[]")
         _DEF_RE_CACHE[name] = cached
     return cached
 

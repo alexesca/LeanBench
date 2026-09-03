@@ -17,6 +17,7 @@ from ..model import (
     UnresolvedRef,
     make_stable_key,
 )
+from ..registry import FactKindError
 from .base import ExtractionContext
 from .tokens import structure_hash_generic
 
@@ -70,24 +71,36 @@ class MarkdownAdapter:
         ext.symbols.append(module_sym)
         ctx.file.role = title[:120]
 
-        def fact(kind: str, value: str, *, symbol_key: str, priority: int | None = None,
-                 provenance: str = "markdown", confidence: float = 0.8,
-                 line: int = 0) -> None:
+        def fact(
+            kind: str,
+            value: str,
+            *,
+            symbol_key: str,
+            priority: int | None = None,
+            provenance: str = "markdown",
+            confidence: float = 0.8,
+            line: int = 0,
+        ) -> None:
             try:
                 ext.facts.append(
-                    reg.make(kind, value, file_path=path, symbol_key=symbol_key,
-                             provenance=provenance, confidence=confidence,
-                             priority=priority, range=SourceRange(line, line, 0, 0))
+                    reg.make(
+                        kind,
+                        value,
+                        file_path=path,
+                        symbol_key=symbol_key,
+                        provenance=provenance,
+                        confidence=confidence,
+                        priority=priority,
+                        range=SourceRange(line, line, 0, 0),
+                    )
                 )
-            except Exception as exc:
+            except FactKindError as exc:
                 ext.diagnostics.append(f"fact-rejected:{kind}:{exc}")
 
         if title:
             fact("purpose", title[:200], symbol_key=doc_key, priority=base_priority)
             for w in _WORD.findall(title.lower()):
-                ext.keyword_candidates.append(
-                    KeywordCandidate(w, "heading", doc_key, path)
-                )
+                ext.keyword_candidates.append(KeywordCandidate(w, "heading", doc_key, path))
 
         is_adr = _is_adr(path, ctx)
         in_fence = False
@@ -103,17 +116,32 @@ class MarkdownAdapter:
             body = " ".join(b.strip() for b in buf if b.strip())
             if not body:
                 return
-            fact("documentation", body[:excerpt_chars], symbol_key=key,
-                 priority=base_priority + 1, line=line_no)
+            fact(
+                "documentation",
+                body[:excerpt_chars],
+                symbol_key=key,
+                priority=base_priority + 1,
+                line=line_no,
+            )
             low = body.lower()
             if any(w in low for w in ("must not", "never ", "must always", "always ")):
-                fact("invariant", body[:excerpt_chars], symbol_key=key,
-                     priority=base_priority - 1 if base_priority else 0, line=line_no)
+                fact(
+                    "invariant",
+                    body[:excerpt_chars],
+                    symbol_key=key,
+                    priority=base_priority - 1 if base_priority else 0,
+                    line=line_no,
+                )
             if any(w in low for w in ("warning", "caution", "note that", "be careful")):
                 fact("warning", body[:excerpt_chars], symbol_key=key, line=line_no)
             if is_adr and any(w in low for w in ("decision", "we will", "chosen", "accepted")):
-                fact("architecture_decision", body[:excerpt_chars], symbol_key=key,
-                     priority=1, line=line_no)
+                fact(
+                    "architecture_decision",
+                    body[:excerpt_chars],
+                    symbol_key=key,
+                    priority=1,
+                    line=line_no,
+                )
 
         for idx, line in enumerate(lines, start=1):
             if _CODE_FENCE.match(line):
@@ -122,8 +150,9 @@ class MarkdownAdapter:
             if in_fence:
                 cmd = _COMMANDISH.match(line)
                 if cmd:
-                    fact("resource", f"command={cmd.group(2)[:80]}", symbol_key=current_key,
-                         line=idx)
+                    fact(
+                        "resource", f"command={cmd.group(2)[:80]}", symbol_key=current_key, line=idx
+                    )
                 for env in set(_ENVVAR.findall(line)):
                     fact("config_key", f"{env}=<code>", symbol_key=current_key, line=idx)
                 continue
@@ -163,21 +192,36 @@ class MarkdownAdapter:
                 if links >= max_links:
                     break
                 links += 1
-                fact("documentation", f"link={text_[:40]}->{target[:80]}",
-                     symbol_key=current_key, line=idx, confidence=0.6)
+                fact(
+                    "documentation",
+                    f"link={text_[:40]}->{target[:80]}",
+                    symbol_key=current_key,
+                    line=idx,
+                    confidence=0.6,
+                )
                 if _FILEISH.match(target):
                     ext.refs.append(
-                        UnresolvedRef(name=target, kind="DOCUMENTS",
-                                      source_symbol_key=current_key, source_file=path, line=idx)
+                        UnresolvedRef(
+                            name=target,
+                            kind="DOCUMENTS",
+                            source_symbol_key=current_key,
+                            source_file=path,
+                            line=idx,
+                        )
                     )
             for code in _INLINE_CODE.findall(line):
                 token = code.strip()
                 if _SYMBOLISH.match(token) and concepts < max_concepts:
                     concepts += 1
                     ext.refs.append(
-                        UnresolvedRef(name=token.split(".")[-1], kind="MENTIONS",
-                                      source_symbol_key=current_key, source_file=path,
-                                      line=idx, receiver=token)
+                        UnresolvedRef(
+                            name=token.split(".")[-1],
+                            kind="MENTIONS",
+                            source_symbol_key=current_key,
+                            source_file=path,
+                            line=idx,
+                            receiver=token,
+                        )
                     )
                     for w in _WORD.findall(token):
                         ext.keyword_candidates.append(
@@ -185,13 +229,16 @@ class MarkdownAdapter:
                         )
                 elif _FILEISH.match(token):
                     ext.refs.append(
-                        UnresolvedRef(name=token, kind="DOCUMENTS",
-                                      source_symbol_key=current_key, source_file=path, line=idx)
+                        UnresolvedRef(
+                            name=token,
+                            kind="DOCUMENTS",
+                            source_symbol_key=current_key,
+                            source_file=path,
+                            line=idx,
+                        )
                     )
             for w in _WORD.findall(line.lower())[:12]:
-                ext.keyword_candidates.append(
-                    KeywordCandidate(w, "docstring", current_key, path)
-                )
+                ext.keyword_candidates.append(KeywordCandidate(w, "docstring", current_key, path))
 
         flush(current_key, section_lines, len(lines))
 

@@ -12,7 +12,6 @@ import json
 import sys
 import time
 from pathlib import Path
-from typing import Any
 
 from .config import load_config, parse_cli_override, schema
 from .indexer import Indexer
@@ -44,8 +43,10 @@ def cmd_sync(args: argparse.Namespace) -> int:
     store.set_meta("source_bytes", str(result.source_bytes))
     kbps = (result.source_bytes / 1024.0) / max(elapsed, 1e-9)
     print(json.dumps(result.as_dict(), indent=2))
-    print(f"throughput {kbps:.0f} KB/s   index {store.size_bytes()} bytes "
-          f"({store.size_bytes()/max(result.source_bytes,1):.2f}x source)")
+    print(
+        f"throughput {kbps:.0f} KB/s   index {store.size_bytes()} bytes "
+        f"({store.size_bytes() / max(result.source_bytes, 1):.2f}x source)"
+    )
     return 0
 
 
@@ -93,22 +94,23 @@ def cmd_status(args: argparse.Namespace) -> int:
     state = load_state(state_dir)
     from .keywords import drift
 
-    value = drift(state.idf_doc_count, state.files_added_since_idf,
-                  state.files_removed_since_idf)
+    value = drift(state.idf_doc_count, state.files_added_since_idf, state.files_removed_since_idf)
     threshold = float(cfg.get("keywords.idf_drift_threshold", 0.15))
-    print(json.dumps(
-        {
-            "generation": store.generation(),
-            "idf_generation": store.idf_generation(),
-            "index_state": store.index_state(),
-            "idf_drift": round(value, 4),
-            "idf_drift_threshold": threshold,
-            # Reported, never acted on: an automatic resync would make runs
-            # nondeterministic, so the benchmark must opt into it knowingly.
-            "advice": "sync advisable" if value > threshold else "ok",
-        },
-        indent=2,
-    ))
+    print(
+        json.dumps(
+            {
+                "generation": store.generation(),
+                "idf_generation": store.idf_generation(),
+                "index_state": store.index_state(),
+                "idf_drift": round(value, 4),
+                "idf_drift_threshold": threshold,
+                # Reported, never acted on: an automatic resync would make runs
+                # nondeterministic, so the benchmark must opt into it knowingly.
+                "advice": "sync advisable" if value > threshold else "ok",
+            },
+            indent=2,
+        )
+    )
     return 0
 
 
@@ -158,29 +160,41 @@ def cmd_server(args: argparse.Namespace) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="leanvfs")
     parser.add_argument("--repo", default=".", help="repository root")
-    parser.add_argument("--set", action="append", default=[],
-                        help="config override, key=value (TOML-parsed)")
+    parser.add_argument(
+        "--set", action="append", default=[], help="config override, key=value (TOML-parsed)"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     sub.add_parser("sync", help="index the repository from clean").set_defaults(fn=cmd_sync)
 
-    p = sub.add_parser("search"); p.add_argument("query"); p.add_argument("--limit", type=int, default=10)
+    p = sub.add_parser("search")
+    p.add_argument("query")
+    p.add_argument("--limit", type=int, default=10)
     p.set_defaults(fn=cmd_search)
 
-    p = sub.add_parser("context"); p.add_argument("symbol")
-    p.add_argument("--budget", type=int, default=None); p.set_defaults(fn=cmd_context)
+    p = sub.add_parser("context")
+    p.add_argument("symbol")
+    p.add_argument("--budget", type=int, default=None)
+    p.set_defaults(fn=cmd_context)
 
-    p = sub.add_parser("render"); p.add_argument("path"); p.set_defaults(fn=cmd_render)
+    p = sub.add_parser("render")
+    p.add_argument("path")
+    p.set_defaults(fn=cmd_render)
     sub.add_parser("stats").set_defaults(fn=cmd_stats)
     sub.add_parser("status").set_defaults(fn=cmd_status)
 
-    p = sub.add_parser("explain-budget"); p.add_argument("symbol")
-    p.add_argument("--budget", type=int, default=None); p.set_defaults(fn=cmd_explain_budget)
+    p = sub.add_parser("explain-budget")
+    p.add_argument("symbol")
+    p.add_argument("--budget", type=int, default=None)
+    p.set_defaults(fn=cmd_explain_budget)
 
     cfg = sub.add_parser("config").add_subparsers(dest="sub", required=True)
     cfg.add_parser("show").set_defaults(fn=cmd_config_show)
-    c = cfg.add_parser("explain"); c.add_argument("key"); c.set_defaults(fn=cmd_config_explain)
-    s = cfg.add_parser("schema"); s.add_argument("--json", action="store_true")
+    c = cfg.add_parser("explain")
+    c.add_argument("key")
+    c.set_defaults(fn=cmd_config_explain)
+    s = cfg.add_parser("schema")
+    s.add_argument("--json", action="store_true")
     s.set_defaults(fn=cmd_config_schema)
 
     facts = sub.add_parser("facts").add_subparsers(dest="sub", required=True)

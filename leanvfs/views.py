@@ -85,8 +85,7 @@ def build_file_view(store: Store, path: str, cfg: Any) -> FileView | None:
         line_count=int(frow["line_count"]),
         parse_state=frow["parse_state"],
         role=frow["role"] or "",
-        keywords=[(r["term"], round(r["score"], 4))
-                  for r in store.keywords_for_file(fid, kw_file)],
+        keywords=[(r["term"], round(r["score"], 4)) for r in store.keywords_for_file(fid, kw_file)],
     )
 
     # imports
@@ -104,9 +103,7 @@ def build_file_view(store: Store, path: str, cfg: Any) -> FileView | None:
     view.imports_ext = sorted(set(ext))
 
     rows = list(
-        store.conn.execute(
-            "SELECT * FROM symbols WHERE file_id=? ORDER BY stable_key", (fid,)
-        )
+        store.conn.execute("SELECT * FROM symbols WHERE file_id=? ORDER BY stable_key", (fid,))
     )
     facts_by_symbol: dict[int, list[Any]] = {}
     file_level: list[Any] = []
@@ -137,14 +134,16 @@ def build_file_view(store: Store, path: str, cfg: Any) -> FileView | None:
             if r["parent_symbol_id"] is not None
             else None,
             decorators=[d for d in (r["decorators"] or "").split(",") if d],
-            keywords=[(k["term"], round(k["score"], 4))
-                      for k in store.keywords_for_symbol(sid, kw_sym)],
+            keywords=[
+                (k["term"], round(k["score"], 4)) for k in store.keywords_for_symbol(sid, kw_sym)
+            ],
             facts=_facts_map(facts_by_symbol.get(sid, [])),
         )
         view.symbols.append(sv)
         if r["kind"] == "module":
             view.exports = sorted(
-                v.split("=", 1)[1] for v in sv.values("framework_metadata")
+                v.split("=", 1)[1]
+                for v in sv.values("framework_metadata")
                 if v.startswith("export=")
             )
             view.env = sorted(
@@ -176,7 +175,8 @@ def build_symbol_view(store: Store, row: Any, cfg: Any) -> SymbolView:
         doc=row["doc"] or "",
         parent_key=None,
         decorators=[d for d in (row["decorators"] or "").split(",") if d],
-        keywords=[(k["term"], round(k["score"], 4))
-                  for k in store.keywords_for_symbol(sid, kw_sym)],
+        keywords=[
+            (k["term"], round(k["score"], 4)) for k in store.keywords_for_symbol(sid, kw_sym)
+        ],
         facts=_facts_map(store.facts_for_symbol(sid)),
     )

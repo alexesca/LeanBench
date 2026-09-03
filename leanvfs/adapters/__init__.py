@@ -18,15 +18,15 @@ from .markdown import MarkdownAdapter
 from .python_adapter import PythonAdapter
 
 __all__ = [
-    "ExtractionContext",
-    "LanguageAdapter",
-    "MetadataOnlyAdapter",
+    "ADAPTERS",
     "ConfigAdapter",
+    "ExtractionContext",
     "GenericTextAdapter",
+    "LanguageAdapter",
     "MarkdownAdapter",
+    "MetadataOnlyAdapter",
     "PythonAdapter",
     "select_adapter",
-    "ADAPTERS",
 ]
 
 ADAPTERS: dict[str, LanguageAdapter] = {}

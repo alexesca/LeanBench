@@ -11,6 +11,7 @@ from ..model import (
     Symbol,
     make_stable_key,
 )
+from ..registry import FactKindError
 from .base import ExtractionContext
 from .tokens import structure_hash_generic
 
@@ -66,10 +67,16 @@ class GenericTextAdapter:
         for env in sorted(envs)[:20]:
             try:
                 ext.facts.append(
-                    reg.make("resource", f"env={env}", file_path=path, symbol_key=root_key,
-                             provenance="heuristic", confidence=0.5)
+                    reg.make(
+                        "resource",
+                        f"env={env}",
+                        file_path=path,
+                        symbol_key=root_key,
+                        provenance="heuristic",
+                        confidence=0.5,
+                    )
                 )
-            except Exception as exc:
+            except FactKindError as exc:
                 ext.diagnostics.append(f"fact-rejected:resource:{exc}")
         for sym in ext.symbols:
             sym.interface_hash = _h(["iface", sym.qualified_name])

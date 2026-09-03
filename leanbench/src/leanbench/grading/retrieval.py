@@ -47,23 +47,23 @@ class RetrievalGrader:
             )
             rounded = {k: round(v, self.precision) for k, v in score.metrics.items()}
             metrics = ProbeMetrics(
-                    task_id=task.id,
-                    paraphrase_id=probe.get("paraphrase_id", ""),
-                    op=op,
-                    recall_at_k={k: round(v, self.precision) for k, v in score.recall_at_k.items()},
-                    precision_at_k={
-                        k: round(v, self.precision) for k, v in score.precision_at_k.items()
-                    },
-                    symbol_recall_at_k={
-                        k: round(v, self.precision) for k, v in score.symbol_recall_at_k.items()
-                    },
-                    mrr=rounded["mrr"],
-                    ndcg_at_10=rounded[f"ndcg_at_{self.ndcg_k}"],
-                    tokens_returned=int(probe.get("tokens_returned", 0)),
-                    results_returned=score.results_returned,
-                    relevant_returned=score.relevant_returned,
-                    failed=failed,
-                    classification=probe.get("classification"),
+                task_id=task.id,
+                paraphrase_id=probe.get("paraphrase_id", ""),
+                op=op,
+                recall_at_k={k: round(v, self.precision) for k, v in score.recall_at_k.items()},
+                precision_at_k={
+                    k: round(v, self.precision) for k, v in score.precision_at_k.items()
+                },
+                symbol_recall_at_k={
+                    k: round(v, self.precision) for k, v in score.symbol_recall_at_k.items()
+                },
+                mrr=rounded["mrr"],
+                ndcg_at_10=rounded[f"ndcg_at_{self.ndcg_k}"],
+                tokens_returned=int(probe.get("tokens_returned", 0)),
+                results_returned=score.results_returned,
+                relevant_returned=score.relevant_returned,
+                failed=failed,
+                classification=probe.get("classification"),
             )
             scored.append(((metrics.paraphrase_id, metrics.op), metrics, rounded))
 
@@ -77,11 +77,11 @@ class RetrievalGrader:
             probe_count=len(probe_metrics),
             mean=means,
             worst=worst,
-            tokens_returned_mean=round(sum(tokens) / len(tokens), self.precision) if tokens else 0.0,
+            tokens_returned_mean=round(sum(tokens) / len(tokens), self.precision)
+            if tokens
+            else 0.0,
             tokens_returned_total=sum(tokens),
-            brittle=brittleness(
-                means, worst, metric=self.primary_metric, gap=self.brittleness_gap
-            ),
+            brittle=brittleness(means, worst, metric=self.primary_metric, gap=self.brittleness_gap),
             failed_probes=sum(1 for p in probe_metrics if p.failed),
         )
         return {"probe_metrics": probe_metrics, "task_metrics": task_metrics}

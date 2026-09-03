@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import hashlib
-from typing import Iterable
+from collections.abc import Iterable
 
 DEFAULT_DIGEST_BYTES = 16
 

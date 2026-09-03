@@ -12,11 +12,12 @@ from typing import Any
 DIGEST_SIZE = 32  # BLAKE2b-256
 CHUNK_BYTES = 1 << 20
 #: Directories never walked when hashing an interpreted candidate's source tree.
-SKIP_DIRS = frozenset({".git", "__pycache__", ".venv", "node_modules", ".mypy_cache",
-                       ".pytest_cache", ".ruff_cache"})
+SKIP_DIRS = frozenset(
+    {".git", "__pycache__", ".venv", "node_modules", ".mypy_cache", ".pytest_cache", ".ruff_cache"}
+)
 
 
-def _hasher() -> "hashlib._Hash":
+def _hasher() -> hashlib._Hash:
     return hashlib.blake2b(digest_size=DIGEST_SIZE)
 
 

@@ -1,0 +1,45 @@
+id          = "mini-005"
+version     = 1
+repository  = "mini-repo"
+commit      = "fixture"
+category    = "symbol_location"
+difficulty  = "L1"
+authored_by = "claude-opus-5"
+reviewed_by = ""
+authored_at = "2026-09-03"
+tags        = ["payments"]
+
+required_capabilities = ["search"]
+allowed_tools         = ["candidate.search"]
+
+prompt = """
+Where does a declined card become an application error, and how many attempts are recorded?
+"""
+
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "PaymentGateway charge PaymentDeclined attempts", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "turning a refused card response into an exception the app understands", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "customer says their payment keeps getting refused", limit = 10 }
+
+
+[gold]
+files   = ["shopcart/payments.py"]
+symbols = ["PaymentGateway.charge", "PaymentDeclined"]
+tests   = ["tests/test_payments.py"]
+justification = "charge translates a gateway refusal into PaymentDeclined and carries the attempt count, which is the only place the two facts meet."
+
+
+[limits]
+max_tool_calls        = 10
+max_repository_tokens = 8000
+wall_clock_s          = 30

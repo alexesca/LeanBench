@@ -33,8 +33,7 @@ from pathlib import Path
 
 PROTOCOL_VERSION = 1
 STOPWORDS = frozenset(
-    """a an the of to for in on with and or is are be does do how what where when which that this
-    it its as by from at into over after before than then use used using can could should""".split()
+    ["a", "an", "the", "of", "to", "for", "in", "on", "with", "and", "or", "is", "are", "be", "does", "do", "how", "what", "where", "when", "which", "that", "this", "it", "its", "as", "by", "from", "at", "into", "over", "after", "before", "than", "then", "use", "used", "using", "can", "could", "should"]
 )
 TOKEN_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
 SPLIT_RE = re.compile(r"[^A-Za-z0-9]+")

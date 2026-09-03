@@ -58,8 +58,13 @@ class RetrievalHarness:
                     exit_code=getattr(exc, "exit_code", None),
                 )
                 observation.update(
-                    {"failed": True, "classification": exc.classification, "result": {},
-                     "tokens_returned": 0, "latency_ms": 0.0}
+                    {
+                        "failed": True,
+                        "classification": exc.classification,
+                        "result": {},
+                        "tokens_returned": 0,
+                        "latency_ms": 0.0,
+                    }
                 )
                 probes.append(observation)
                 continue

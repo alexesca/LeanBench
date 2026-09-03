@@ -1,0 +1,45 @@
+id          = "mini-004"
+version     = 1
+repository  = "mini-repo"
+commit      = "fixture"
+category    = "change_impact"
+difficulty  = "L3"
+authored_by = "claude-opus-5"
+reviewed_by = ""
+authored_at = "2026-09-03"
+tags        = ["coupons", "pricing"]
+
+required_capabilities = ["search"]
+allowed_tools         = ["candidate.search"]
+
+prompt = """
+If the coupon expiry rule changed, which code would need to change with it?
+"""
+
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "Coupon expired CouponExpired apply_discount", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "where is it decided that a promotional code is no longer valid", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "an old promo code was still accepted at the till", limit = 10 }
+
+
+[gold]
+files   = ["shopcart/discounts.py", "shopcart/pricing.py"]
+symbols = ["Coupon", "PricingEngine.apply_discount"]
+tests   = ["tests/test_discounts.py"]
+justification = "The expiry predicate lives on Coupon and its only consumer is PricingEngine.apply_discount, so a rule change touches both the definition and the call site."
+
+
+[limits]
+max_tool_calls        = 10
+max_repository_tokens = 8000
+wall_clock_s          = 30

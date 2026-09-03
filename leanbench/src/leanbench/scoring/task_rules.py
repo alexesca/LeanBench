@@ -41,7 +41,9 @@ def validate_task(
         issues.append(_issue("<unknown>", ERROR, "id_missing", "task id is empty"))
     if filename_stem is not None and tid != filename_stem:
         issues.append(
-            _issue(tid, ERROR, "id_filename_mismatch", f"id {tid!r} != filename stem {filename_stem!r}")
+            _issue(
+                tid, ERROR, "id_filename_mismatch", f"id {tid!r} != filename stem {filename_stem!r}"
+            )
         )
     if tid in set(seen_ids):
         issues.append(_issue(tid, ERROR, "id_duplicate", f"duplicate task id {tid!r} in suite"))
@@ -134,19 +136,26 @@ def validate_task(
         for path in sorted(set(task.gold.files + task.gold.tests + task.gold.docs)):
             if not path_exists(path):
                 issues.append(
-                    _issue(tid, ERROR, "stale_gold", f"gold path {path!r} does not resolve at commit")
+                    _issue(
+                        tid, ERROR, "stale_gold", f"gold path {path!r} does not resolve at commit"
+                    )
                 )
         for rng in task.gold.ranges:
             if not path_exists(rng.path):
                 issues.append(
-                    _issue(tid, ERROR, "stale_gold", f"gold range path {rng.path!r} does not resolve")
+                    _issue(
+                        tid, ERROR, "stale_gold", f"gold range path {rng.path!r} does not resolve"
+                    )
                 )
     if symbol_exists is not None:
         for symbol in sorted(set(task.gold.symbols)):
             if not symbol_exists(symbol):
                 issues.append(
                     _issue(
-                        tid, ERROR, "stale_gold", f"gold symbol {symbol!r} does not resolve at commit"
+                        tid,
+                        ERROR,
+                        "stale_gold",
+                        f"gold symbol {symbol!r} does not resolve at commit",
                     )
                 )
 
@@ -177,11 +186,18 @@ def validate_task(
             _issue(tid, ERROR, "reviewed_by_missing", "reviewed_by is required in a released suite")
         )
     elif not task.reviewed_by.strip():
-        issues.append(_issue(tid, WARNING, "reviewed_by_missing", "reviewed_by is empty (dev suite)"))
+        issues.append(
+            _issue(tid, WARNING, "reviewed_by_missing", "reviewed_by is empty (dev suite)")
+        )
 
     if not task.authored_at.strip():
         issues.append(
-            _issue(tid, WARNING, "authored_at_missing", "authored_at is needed for contamination provenance")
+            _issue(
+                tid,
+                WARNING,
+                "authored_at_missing",
+                "authored_at is needed for contamination provenance",
+            )
         )
 
     return sorted(issues, key=lambda i: (i.severity, i.code, i.message))

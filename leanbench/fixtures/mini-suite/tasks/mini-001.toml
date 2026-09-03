@@ -1,0 +1,46 @@
+id          = "mini-001"
+version     = 1
+repository  = "mini-repo"
+commit      = "fixture"
+category    = "behavior"
+difficulty  = "L2"
+authored_by = "claude-opus-5"
+reviewed_by = ""
+authored_at = "2026-09-03"
+tags        = ["checkout", "ordering"]
+
+required_capabilities = ["search"]
+allowed_tools         = ["candidate.search"]
+
+prompt = """
+In what order does checkout reserve stock and charge the customer, and what happens
+to the reservation if the payment is declined?
+"""
+
+[[probes]]
+paraphrase_id = "literal"
+op            = "search"
+args          = { query = "CheckoutService reserve stock charge payment declined", limit = 10 }
+
+[[probes]]
+paraphrase_id = "intent"
+op            = "search"
+args          = { query = "make sure a shopper is never billed for something that cannot ship", limit = 10 }
+
+[[probes]]
+paraphrase_id = "symptom"
+op            = "search"
+args          = { query = "card was declined but the item stayed unavailable afterwards", limit = 10 }
+
+
+[gold]
+files   = ["shopcart/checkout.py"]
+symbols = ["CheckoutService.place_order"]
+tests   = ["tests/test_checkout.py"]
+justification = "place_order fixes the sequence -- validate, reserve, price, charge -- and releases the reservation on PaymentDeclined; the ordering rationale is documented on CheckoutService."
+
+
+[limits]
+max_tool_calls        = 10
+max_repository_tokens = 8000
+wall_clock_s          = 30
