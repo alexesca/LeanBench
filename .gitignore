@@ -216,3 +216,10 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# LeanBench corpus working copies (cloned, pinned by SHA in corpus/manifest.toml)
+corpus/*/
+
+# Run artifacts
+runs/
+.leanvfs/
