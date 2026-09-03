@@ -1,0 +1,26 @@
+protocol_version = 1
+
+[candidate]
+name = "LeanVFS"
+version = "0.1.0"
+
+[runtime]
+command = "python"
+args = ["-m", "leanvfs", "benchmark-server"]
+cwd = ".."
+
+[timeouts]
+startup_s = 20.0
+prepare_s = 600.0
+op_s = 30.0
+shutdown_s = 5.0
+
+[capabilities]
+search = true
+symbols = true
+context = true
+dependencies = true
+references = true
+tests = true
+docs = true
+incremental = true
