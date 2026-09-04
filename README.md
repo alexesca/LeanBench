@@ -14,8 +14,19 @@ minimal AST index. Both live here, because an indexer with no measurement is a g
 ## Install
 
 ```bash
+# If the repository is PUBLIC:
 pip install "git+https://github.com/alexesca/LeanBench.git"
+
+# If it is PRIVATE (the default today) — uses your SSH key:
+pip install "git+ssh://git@github.com/alexesca/LeanBench.git"
+
+# Or from a local clone:
+pip install /path/to/LeanBench
 ```
+
+> **Note:** the HTTPS form only works once the repository is public. Anonymous HTTPS
+> against a private repo fails with `could not read Username for 'https://github.com'`,
+> which is a permissions error rather than a packaging one.
 
 That gives you a `leanvfs` command. There is no config file, no daemon, no setup step:
 

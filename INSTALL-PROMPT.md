@@ -8,8 +8,9 @@ repository. It installs LeanVFS and switches the agent's search habit over to it
 ```
 Install LeanVFS in this repo and use it for all code search from now on.
 
-1. Install it:
-   pip install "git+https://github.com/alexesca/LeanBench.git"
+1. Install it (use the SSH form while the repo is private):
+   pip install "git+ssh://git@github.com/alexesca/LeanBench.git"
+   # once public:  pip install "git+https://github.com/alexesca/LeanBench.git"
 
 2. Verify it works:
    leanvfs --repo . search "error handling" --limit 5
