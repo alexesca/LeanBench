@@ -320,8 +320,8 @@ gets sent to the model.
 So I flipped the default to contradict the design document, and wrote the measurement into the
 config file beside the setting, so the next person sees the evidence rather than the intuition.
 
-Two design beliefs held by the person best positioned to be right were tested, and both were
-wrong.
+That is now two design beliefs — the query-normalisation fix in Step 3, and the noise-suppression
+assumption here — held by the person best positioned to be right, tested, and both wrong.
 
 ### Step 5 — Check the direction, not just the magnitude
 
@@ -333,8 +333,8 @@ The benchmark never caught this, and could not have: every question in the suite
 against a static snapshot. The suite had no concept of deletion, so no score could ever move.
 
 This is worth being precise about, because it cuts against the argument for heavyweight
-measurement: the elaborate statistical apparatus missed a serious bug that a sixty-second manual
-walkthrough found immediately. **A benchmark measures what you pointed it at. It cannot tell you
+measurement: the elaborate statistical apparatus missed a serious bug that a brief manual walkthrough
+found immediately. **A benchmark measures what you pointed it at. It cannot tell you
 that you pointed it in the wrong direction.**
 
 The two techniques are complements, not substitutes, and the cheap one should come first.
@@ -347,8 +347,11 @@ The two techniques are complements, not substitutes, and the cheap one should co
 | Result diversification, cap 3 | small gain | +1% | yes |
 | Query-side normalisation | large gain | **−5%** | **reverted** |
 | Suppress trivial-call noise | small gain | **−1.3%** | **default inverted** |
-| Fold write-ahead log after commit | none | index 4.18× → **1.79×** | yes |
+| Fold write-ahead log after commit | none | index 4.18× → **1.79×** \* | yes |
 | Fix symbol-identity reallocation | correctness | fixed silent corruption | yes |
+
+\* *Later extraction work brought the index back up to 3.96× of source, so 1.79× is the
+effect of that one change, not the figure the system ships at today.*
 
 Two of six changes I expected to help, hurt. One I expected to be cosmetic more than halved the
 index. That hit rate — roughly a third of confident predictions being wrong in *direction* — is
@@ -493,7 +496,10 @@ Every failure mode maps directly:
 - **Type II** is a trial that can't distinguish drug from placebo because the endpoint is too
   crude or the population too heterogeneous.
 - **Metric gaming** is surrogate endpoints — measuring a biomarker because it's cheap and fast,
-  then discovering the biomarker moved and the patients didn't.
+  then discovering the biomarker moved and the patients didn't. Torcetrapib is the canonical
+  case: it raised HDL cholesterol substantially, exactly as the surrogate demanded, and its
+  Phase III trial was halted in 2006 because mortality went *up*. The metric was not wrong about
+  HDL. It was wrong that HDL was the thing that mattered.
 - **Baseline quality** is why placebo control is non-negotiable, and why "compared to no
   treatment" is a much weaker claim than "compared to the best available treatment."
 
@@ -511,6 +517,11 @@ the benchmark measured performance *on that table* and everyone read it as compe
 grasping. The defence is the same — deliberately include held-out conditions you expect to be
 hard, and treat a benchmark that everything passes as broken rather than solved.
 
+There is a well-documented instance of the same failure in autonomous driving: systems evaluated
+against benchmark suites of predominantly daytime, clear-weather, well-marked-road footage, whose
+performance degrades sharply on the conditions the suite under-represents. The benchmark was not
+lying; it was answering a narrower question than the one everyone was reading it to answer.
+
 Robotics also has an unusually honest advantage: reality provides an unforgeable evaluation.
 The robot either picks up the object or it doesn't. Fields without that grounding — including
 most of software — must construct their ground truth, and constructed ground truth can be wrong
@@ -519,7 +530,10 @@ in ways physics cannot.
 ### Empirical research
 
 The replication crisis is a Type I failure at civilisation scale: thousands of published findings
-that were noise, reported as signal, by researchers who followed the norms of their fields.
+that were noise, reported as signal, by researchers who followed the norms of their fields. When
+the Open Science Collaboration attempted direct replications of 100 psychology studies in 2015,
+roughly a third to 40% reproduced, depending on the criterion used — and the replicated effects
+were on average around half the original size. Nothing in that required a single fraudulent act.
 
 The mechanisms are the same ones described above, with the incentives inverted. Publication
 favours positive results, so negative results — the highest-value output of an honest loop —

@@ -1,9 +1,13 @@
 # LeanVFS + LeanBench
 
 **LeanVFS** is a local, offline, deterministic semantic index that lets a coding agent
-search your repository without reading whole files. On a real codebase it answers a
-question in **~130 tokens** where grep-and-read costs **~26,000** — the same answer,
-197× cheaper.
+search your repository without reading whole files. On a real codebase, answering a
+question end to end — locate it, read the symbol's contract, then read the one range that
+matters — costs **~617 tokens** against **~26,444** for grep-and-read. About **43× less**.
+
+*(The `search` step alone is ~130 tokens, and quoting that against the full grep-and-read
+cost would let us claim 197×. It would also be comparing one step to a whole workflow, so
+the number above is the honest one.)*
 
 **LeanBench** is the benchmark that decides whether that claim is true. It treats LeanVFS
 as just another candidate and measures it against raw file reading, ripgrep, CTags and a
