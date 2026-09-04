@@ -33,6 +33,44 @@ def _open(repo: Path, overrides: list[str], *, fresh: bool = False):
     return cfg, state_dir, Store(db)
 
 
+def _open_for_query(repo: Path, overrides: list[str], *, quiet: bool = False):
+    """Open the index for reading, bringing it up to date first.
+
+    An agent that edits a file and then asks a question must not be answered from the
+    previous state. Making every query self-healing is the difference between a tool that
+    is occasionally, silently wrong and one that can be trusted without ceremony -- and
+    it is cheap, because an unchanged file costs one hash and nothing else (~50 ms across
+    125 files). Disable with `--set general.auto_sync=false` for a frozen index.
+    """
+    cfg, state_dir, store = _open(repo, overrides)
+    if not bool(cfg.get("general.auto_sync", True)):
+        return cfg, state_dir, store
+
+    indexer = Indexer(repo, store, cfg, state_dir=state_dir)
+    started = time.perf_counter()
+    if store.count("files") == 0:
+        # Never indexed. Do it now rather than returning an empty result set that looks
+        # like "nothing matches" instead of "nothing is indexed".
+        result = indexer.full_sync()
+        store.set_meta("source_bytes", str(result.source_bytes))
+        store.set_meta("cold_index_ms", str((time.perf_counter() - started) * 1000.0))
+        if not quiet:
+            print(
+                f"[leanvfs] first run: indexed {result.files} files "
+                f"in {(time.perf_counter() - started) * 1000:.0f} ms",
+                file=sys.stderr,
+            )
+    else:
+        result = indexer.incremental_sync()
+        if result.reparsed and not quiet:
+            print(
+                f"[leanvfs] refreshed {result.reparsed} changed file(s) "
+                f"in {(time.perf_counter() - started) * 1000:.0f} ms",
+                file=sys.stderr,
+            )
+    return cfg, state_dir, store
+
+
 def cmd_sync(args: argparse.Namespace) -> int:
     repo = Path(args.repo).resolve()
     cfg, state_dir, store = _open(repo, args.set, fresh=True)
@@ -52,7 +90,7 @@ def cmd_sync(args: argparse.Namespace) -> int:
 
 def cmd_search(args: argparse.Namespace) -> int:
     repo = Path(args.repo).resolve()
-    cfg, _sd, store = _open(repo, args.set)
+    cfg, _sd, store = _open_for_query(repo, args.set)
     engine = QueryEngine(store, cfg)
     from .render.compact import render_hits
 
@@ -62,7 +100,7 @@ def cmd_search(args: argparse.Namespace) -> int:
 
 def cmd_context(args: argparse.Namespace) -> int:
     repo = Path(args.repo).resolve()
-    cfg, _sd, store = _open(repo, args.set)
+    cfg, _sd, store = _open_for_query(repo, args.set)
     from .render.compact import render_context
 
     engine = QueryEngine(store, cfg)
@@ -72,7 +110,7 @@ def cmd_context(args: argparse.Namespace) -> int:
 
 def cmd_render(args: argparse.Namespace) -> int:
     repo = Path(args.repo).resolve()
-    cfg, _sd, store = _open(repo, args.set)
+    cfg, _sd, store = _open_for_query(repo, args.set)
     view = build_file_view(store, args.path, cfg)
     if view is None:
         print(f"not indexed: {args.path}", file=sys.stderr)

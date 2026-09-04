@@ -1,0 +1,47 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "leanvfs"
+version = "0.1.0"
+description = "A local, offline, deterministic semantic index that lets coding agents search a repository without reading whole files."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Apache-2.0" }
+authors = [{ name = "LeanVFS contributors" }]
+keywords = ["code-search", "llm", "coding-agent", "context", "tokens", "index", "tree-sitter"]
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: Apache Software License",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Programming Language :: Python :: 3.13",
+  "Topic :: Software Development :: Libraries",
+]
+dependencies = [
+  "tree-sitter>=0.21",
+  "tree-sitter-python>=0.21",
+  "tomli>=2.0; python_version < '3.11'",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7.4", "ruff>=0.4"]
+
+[project.urls]
+Homepage = "https://github.com/alexesca/LeanBench"
+Source = "https://github.com/alexesca/LeanBench"
+Issues = "https://github.com/alexesca/LeanBench/issues"
+
+[project.scripts]
+leanvfs = "leanvfs.cli:main"
+
+# Only LeanVFS ships. `leanbench/` and `baselines/` are the research harness that
+# measures it; they carry their own pyproject files and are not part of this wheel.
+[tool.setuptools]
+packages = ["leanvfs", "leanvfs.adapters", "leanvfs.render"]
+
+[tool.setuptools.package-data]
+leanvfs = ["defaults.toml"]

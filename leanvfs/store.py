@@ -214,6 +214,18 @@ class Store:
 
     def commit(self) -> None:
         self.conn.execute("COMMIT")
+        self.checkpoint()
+
+    def checkpoint(self) -> None:
+        """Fold the write-ahead log back into the database file.
+
+        WAL mode is right for us -- readers never block the indexer -- but an
+        un-checkpointed WAL retains every page written during the session. On a small
+        repository that made the reported index 4x the actual data, which is both wasted
+        disk and a misleading number.
+        """
+        with contextlib.suppress(sqlite3.Error):
+            self.conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
 
     def rollback(self) -> None:
         with contextlib.suppress(sqlite3.Error):  # no active transaction is fine

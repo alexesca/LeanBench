@@ -426,6 +426,22 @@ class Indexer:
         result: IndexResult,
     ) -> None:
         for ext in extractions:
+            # Symbol text is the OTHER way into storage. Facts go through the redactor by
+            # construction (insert_facts accepts only Redacted), but docstrings and
+            # signatures ride on the symbol row and reached SQLite unscrubbed -- a JWT
+            # pasted into a module docstring was being stored verbatim. The invariant is
+            # "no secret persists", not "no fact value persists", so this path is scrubbed
+            # too. Caught by tests/test_secrets_never_persist.py, not by review.
+            for sym in ext.symbols:
+                if sym.doc:
+                    sym.doc = self.redactor.scrub_free_text(sym.doc)
+                if sym.signature:
+                    sym.signature = self.redactor.scrub_free_text(sym.signature)
+                if sym.return_type:
+                    sym.return_type = self.redactor.scrub_free_text(sym.return_type)
+            if ext.file.role:
+                ext.file.role = self.redactor.scrub_free_text(ext.file.role)
+
             file_id = self.store.upsert_file(ext.file, generation)
             ext.file.id = file_id
             symbol_ids = self.store.insert_symbols(file_id, ext.symbols, generation)

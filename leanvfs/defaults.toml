@@ -4,6 +4,10 @@
 #   ~/.config/leanvfs/config.toml -> <repo>/.leanvfs.toml -> <repo>/.leanvfs.local.toml -> CLI flags
 
 [general]
+# Bring the index up to date before answering a query. An agent that edits a file and
+# then asks a question must not be served the previous state; an unchanged file costs
+# one hash, so keeping this on is nearly free. Turn off for a deliberately frozen index.
+auto_sync = true
 profile = "balanced"
 workers = 4
 state_dir = ""
