@@ -338,6 +338,20 @@ class Store:
         }
 
     def delete_file(self, file_id: int) -> None:
+        # Drop the file's symbol documents from FTS *before* the symbol rows go, while
+        # their ids are still readable. Omitting this left a deleted file's symbols
+        # searchable: the query returned hits pointing at a path that no longer exists,
+        # and an agent would follow them into a failed read.
+        for row in self.conn.execute("SELECT id FROM symbols WHERE file_id=?", (file_id,)):
+            self.conn.execute(
+                "DELETE FROM search_fts WHERE doc_kind='symbol' AND doc_id=?", (int(row["id"]),)
+            )
+        # Edges pointing INTO this file's symbols would otherwise dangle.
+        self.conn.execute(
+            "DELETE FROM relationships WHERE target_symbol_id IN "
+            "(SELECT id FROM symbols WHERE file_id=?)",
+            (file_id,),
+        )
         for table in ("symbols", "facts", "keywords", "imports"):
             self.conn.execute(f"DELETE FROM {table} WHERE file_id=?", (file_id,))
         self.conn.execute("DELETE FROM relationships WHERE source_file_id=?", (file_id,))

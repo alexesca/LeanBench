@@ -217,3 +217,29 @@ def test_no_duplicate_symbol_per_declaration(polyglot, tmp_path) -> None:
     _cfg, store, _ix, _r = _index(polyglot, tmp_path)
     rows = list(store.conn.execute("SELECT name, kind, file_id FROM symbols"))
     assert len(rows) == len({(r["name"], r["kind"], r["file_id"]) for r in rows})
+
+
+def test_deleted_file_disappears_from_search(tmp_path: Path) -> None:
+    """A deleted file must stop being returned.
+
+    `delete_file` removed the file's FTS *file* document but not its *symbol* documents,
+    so a deleted file's symbols stayed searchable. The hit pointed at a path that no
+    longer existed and an agent following it would hit a failed read -- a wrong answer
+    delivered with full confidence, which is the worst failure mode an index has.
+    """
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    (repo / "keep.py").write_text("def kept():\n    return 1\n", encoding="utf-8")
+    (repo / "doomed.py").write_text(
+        "def uniquely_named_doomed_symbol():\n    return 2\n", encoding="utf-8"
+    )
+    cfg, store, indexer, _r = _index(repo, tmp_path)
+    engine = QueryEngine(store, cfg)
+    assert engine.search("uniquely_named_doomed_symbol", 10)["hits"]
+
+    (repo / "doomed.py").unlink()
+    indexer.incremental_sync()
+
+    hits = engine.search("uniquely_named_doomed_symbol", 10)["hits"]
+    assert not [h for h in hits if h["path"] == "doomed.py"], hits
+    assert engine.search("kept", 10)["hits"], "deleting one file removed an unrelated one"
