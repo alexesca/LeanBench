@@ -333,6 +333,67 @@ class Store:
         self.conn.execute("DELETE FROM search_fts WHERE doc_kind='file' AND doc_id=?", (file_id,))
         self.conn.execute("DELETE FROM files WHERE id=?", (file_id,))
 
+    def clear_file_derived_keep_symbols(self, file_id: int) -> None:
+        """Drop a file's derived rows but KEEP its symbol rows.
+
+        Symbol identity is `stable_key`, which is deliberately not line-dependent, and
+        `insert_symbols` upserts on it. Deleting the symbol rows first would hand every
+        re-parsed symbol a fresh id while edges *from other files* still referenced the
+        old one -- so a one-file edit would silently dangle inbound relationships across
+        the repository. Keeping the rows lets the upsert preserve ids, and symbols that
+        genuinely disappeared are removed afterwards by `prune_symbols`.
+        """
+        for table in ("facts", "keywords", "imports"):
+            self.conn.execute(f"DELETE FROM {table} WHERE file_id=?", (file_id,))
+        self.conn.execute("DELETE FROM relationships WHERE source_file_id=?", (file_id,))
+        self.conn.execute("DELETE FROM unresolved_refs WHERE source_file_id=?", (file_id,))
+        rows = self.conn.execute("SELECT id FROM symbols WHERE file_id=?", (file_id,)).fetchall()
+        for r in rows:
+            self.conn.execute(
+                "DELETE FROM search_fts WHERE doc_kind='symbol' AND doc_id=?", (int(r["id"]),)
+            )
+        self.conn.execute("DELETE FROM search_fts WHERE doc_kind='file' AND doc_id=?", (file_id,))
+
+    def files_referencing(self, file_id: int) -> list[str]:
+        """Paths whose relationships point INTO this file.
+
+        This is the "resolution fan-in" the bounded-work invariant explicitly allows: a
+        deleted file dangles references held by other files, and those files -- and only
+        those -- must be re-resolved. It is a bounded index lookup, never a repo scan.
+        """
+        rows = self.conn.execute(
+            "SELECT DISTINCT f.path AS path FROM relationships r "
+            "JOIN symbols t ON t.id = r.target_symbol_id "
+            "JOIN files f ON f.id = r.source_file_id "
+            "WHERE t.file_id = ? AND r.source_file_id != ? ORDER BY f.path",
+            (file_id, file_id),
+        )
+        return [r["path"] for r in rows]
+
+    def prune_symbols(self, file_id: int, keep_keys: Sequence[str]) -> list[int]:
+        """Delete symbols of a file that the new parse no longer produces.
+
+        Inbound edges to a removed symbol are dropped rather than left pointing at a row
+        that no longer exists; they are re-resolved from `unresolved_refs` on a later
+        sync if a matching symbol reappears.
+        """
+        keep = set(keep_keys)
+        removed: list[int] = []
+        rows = self.conn.execute(
+            "SELECT id, stable_key FROM symbols WHERE file_id=?", (file_id,)
+        ).fetchall()
+        for row in rows:
+            if row["stable_key"] in keep:
+                continue
+            sid = int(row["id"])
+            removed.append(sid)
+            self.conn.execute("DELETE FROM relationships WHERE target_symbol_id=?", (sid,))
+            self.conn.execute("DELETE FROM facts WHERE symbol_id=?", (sid,))
+            self.conn.execute("DELETE FROM keywords WHERE symbol_id=?", (sid,))
+            self.conn.execute("DELETE FROM search_fts WHERE doc_kind='symbol' AND doc_id=?", (sid,))
+            self.conn.execute("DELETE FROM symbols WHERE id=?", (sid,))
+        return removed
+
     def clear_file_derived(self, file_id: int) -> None:
         """Drop everything derived from one file, keeping the file row itself."""
         rows = self.conn.execute("SELECT id FROM symbols WHERE file_id=?", (file_id,)).fetchall()

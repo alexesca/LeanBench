@@ -248,7 +248,10 @@ class Server:
             raise ProtocolError("not_prepared", "call prepare_repository first")
         started = time.perf_counter()
         indexer = Indexer(self.repo_root, self.store, self.cfg)
-        result = indexer.full_sync()
+        # Hash-gated: unchanged files cost one hash and nothing else, and the frozen IDF
+        # snapshot is read rather than recomputed, so this stays O(changed) and stays
+        # equivalent to a rebuild at the same idf_generation.
+        result = indexer.incremental_sync()
         elapsed = (time.perf_counter() - started) * 1000.0
         self.engine = QueryEngine(self.store, self.cfg)
         return (

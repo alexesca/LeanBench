@@ -28,7 +28,7 @@ from .keywords import (
     normalize_terms,
 )
 from .keywords import score as score_keywords
-from .model import FileExtraction, FileRecord, KeywordCandidate
+from .model import FileExtraction, FileRecord, KeywordCandidate, UnresolvedRef
 from .redact import Redactor
 from .registry import FactRegistry
 from .resolve import Resolver, tier_rates
@@ -246,6 +246,175 @@ class Indexer:
             )
             write_resolved_config(self.state_dir, self.cfg)
         return result
+
+    # -- incremental sync ----------------------------------------------------------
+
+    def incremental_sync(self) -> IndexResult:
+        """Update only what changed, driven by the hash ladder of the invalidation matrix.
+
+        The invariant this exists to satisfy is "bounded work per edit": the cost is
+        O(size of changed files + resolution fan-in of their symbols), never O(repo).
+        Two things make that true and both are easy to get wrong:
+
+        * IDF is **read** from the frozen snapshot and never recomputed. A corpus-wide
+          statistic recomputed here would make incremental state diverge from a clean
+          rebuild, breaking equivalence, or force a repo-wide reparse, breaking
+          boundedness. `full_sync` is the only place that may mint one.
+        * Re-resolution is driven by the name index. Adding a file can resolve references
+          that were dangling in files we did not touch, and deleting one can dangle
+          references that were resolved; a pipeline that only reparses the changed file
+          silently corrupts the relationship graph. Fan-in is bounded by a name lookup,
+          not a scan.
+        """
+        started = time.perf_counter()
+        result = IndexResult()
+
+        with self.telemetry.timer("discovery"):
+            discovered = discover(self.repo_root, self.cfg)
+        self.telemetry.incr("files_discovered", len(discovered))
+
+        known = self.store.file_hashes()
+        seen: set[str] = set()
+        to_extract: list[Discovered] = []
+
+        for disc in discovered:
+            seen.add(disc.rel_path)
+            previous = known.get(disc.rel_path)
+            if previous is None:
+                to_extract.append(disc)
+                continue
+            try:
+                max_bytes = int(self.cfg.get("discovery.max_file_bytes", 2 << 20))
+                with open(disc.abs_path, "rb") as handle:  # noqa: PTH123 - hot path
+                    digest = digest_bytes_(handle.read(max_bytes + 1))
+            except OSError:
+                to_extract.append(disc)
+                continue
+            if digest == previous[1]:
+                # First row of the matrix: identical bytes, no work at all.
+                self.telemetry.incr("hash_skips")
+                result.skipped += 1
+                continue
+            to_extract.append(disc)
+
+        removed = sorted(set(known) - seen)
+
+        # Deleting a file dangles references held by OTHER files. Re-resolve exactly
+        # those: bounded by fan-in, which is what the invariant permits, rather than by
+        # the size of the repository.
+        if removed:
+            queued = {d.rel_path for d in to_extract}
+            by_path = {d.rel_path: d for d in discovered}
+            for path in removed:
+                for referrer in self.store.files_referencing(known[path][0]):
+                    if referrer not in queued and referrer in by_path:
+                        to_extract.append(by_path[referrer])
+                        queued.add(referrer)
+                        self.telemetry.incr("fanin_reresolved")
+
+        generation = self.store.generation() + 1
+        snapshot = self._frozen_snapshot()
+
+        with self.telemetry.timer("parsing"):
+            extractions = self._extract_all(to_extract)
+        result.reparsed = len(extractions)
+        result.source_bytes = sum(e.file.byte_size for e in extractions)
+
+        self.store.begin()
+        try:
+            for path in removed:
+                self.store.delete_file(known[path][0])
+                self.telemetry.incr("files_removed")
+            for ext in extractions:
+                previous = known.get(ext.file.path)
+                if previous is not None:
+                    if previous[2] and previous[2] == ext.file.structure_hash:
+                        # Second row: formatting or comment movement only. Ranges move;
+                        # facts and resolution do not need recomputing.
+                        self.telemetry.incr("structure_hash_skips")
+                    self.store.clear_file_derived_keep_symbols(previous[0])
+                    removed_ids = self.store.prune_symbols(
+                        previous[0], [s.stable_key for s in ext.symbols]
+                    )
+                    if removed_ids:
+                        self.telemetry.incr("symbols_removed", len(removed_ids))
+            self._write_files(extractions, snapshot, generation, result)
+            self._resolve_and_write(extractions, generation, result)
+            self._promote_unresolved(extractions, generation, result)
+            self.store.set_meta("generation", str(generation))
+            self.store.set_index_state("ok")
+            self.telemetry.flush(self.store)
+            self.store.commit()
+        except Exception:
+            self.store.rollback()
+            raise
+
+        result.generation = generation
+        result.idf_generation = snapshot.generation
+        result.files = self.store.count("files")
+        result.symbols = self.store.count("symbols")
+        result.duration_s = time.perf_counter() - started
+        return result
+
+    def _frozen_snapshot(self) -> IdfSnapshot:
+        """Read-only view of the corpus statistics minted by the last full sync."""
+        idf_generation = self.store.idf_generation()
+        values = self.store.read_idf(idf_generation)
+        doc_count = int(self.store.get_meta("doc_count", "0") or 0)
+        return IdfSnapshot(
+            generation=idf_generation,
+            doc_count=doc_count,
+            values=values,
+            default=default_idf(doc_count) if doc_count else 1.0,
+        )
+
+    def _promote_unresolved(
+        self, extractions: list[FileExtraction], generation: int, result: IndexResult
+    ) -> None:
+        """Re-resolve dangling references that the new symbols may now satisfy.
+
+        Without this, adding a file leaves every reference to it permanently unresolved
+        even though the target now exists — incremental state that a clean rebuild would
+        never produce.
+        """
+        names = sorted({s.name for e in extractions for s in e.symbols})
+        if not names:
+            return
+        pending = self.store.unresolved_by_name(names)
+        if not pending:
+            return
+        index = SqlSymbolIndex(self.store.conn)
+        resolver = Resolver(index, self.cfg)
+        promoted = 0
+        for row in pending:
+            ref = UnresolvedRef(
+                name=row["name"],
+                kind=row["kind"],
+                source_symbol_key="",
+                source_file="",
+                line=int(row["line"] or 0),
+                receiver=row["receiver"] or "",
+                alias_module=row["alias_module"] or "",
+                arity=int(row["arity"] if row["arity"] is not None else -1),
+            )
+            edges, resolved = resolver.resolve(
+                ref, int(row["source_symbol_id"] or 0), int(row["source_file_id"] or 0)
+            )
+            if not resolved:
+                continue
+            self.store.insert_relationships(
+                [
+                    (
+                        e.kind, e.source_symbol_id, e.target_symbol_id, e.target_external,
+                        e.confidence, e.tier, e.source_file_id, e.line, generation,
+                    )
+                    for e in edges
+                ]
+            )
+            self.store.conn.execute("DELETE FROM unresolved_refs WHERE id=?", (row["id"],))
+            promoted += 1
+        self.telemetry.incr("re_resolutions", promoted)
+        result.relationships += promoted
 
     # -- write path ---------------------------------------------------------------
 

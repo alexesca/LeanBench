@@ -151,6 +151,24 @@ def cmd_explain_budget(args: argparse.Namespace) -> int:
     return 0
 
 
+def cmd_verify(args: argparse.Namespace) -> int:
+    from .verify import verify
+
+    repo = Path(args.repo).resolve()
+    cfg, _sd, store = _open(repo, args.set)
+    report = verify(repo, store, cfg)
+    print(json.dumps(report.as_dict(), indent=2, sort_keys=True))
+    return 0 if report.ok else 1
+
+
+def cmd_update(args: argparse.Namespace) -> int:
+    repo = Path(args.repo).resolve()
+    cfg, state_dir, store = _open(repo, args.set)
+    result = Indexer(repo, store, cfg, state_dir=state_dir).incremental_sync()
+    print(json.dumps(result.as_dict(), indent=2))
+    return 0
+
+
 def cmd_server(args: argparse.Namespace) -> int:
     from .server import Server
 
@@ -181,6 +199,10 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("path")
     p.set_defaults(fn=cmd_render)
     sub.add_parser("stats").set_defaults(fn=cmd_stats)
+    sub.add_parser("update", help="incremental sync of changed files").set_defaults(fn=cmd_update)
+    v = sub.add_parser("verify", help="assert incremental state equals a clean rebuild")
+    v.add_argument("--pin-idf", action="store_true", default=True)
+    v.set_defaults(fn=cmd_verify)
     sub.add_parser("status").set_defaults(fn=cmd_status)
 
     p = sub.add_parser("explain-budget")
