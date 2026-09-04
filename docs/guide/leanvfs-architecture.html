@@ -1,0 +1,561 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LeanVFS — Architecture Guide</title>
+<style>
+  :root{
+    color-scheme: light;
+    --page:#f9f9f7; --surface:#fcfcfb; --raised:#ffffff;
+    --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781; --rule:#e1e0d9;
+    --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a;
+    --good:#0a7a41; --warn:#8a6100; --bad:#b3261e;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Inter,Roboto,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:where(:not([data-theme="light"])){
+      color-scheme: dark;
+      --page:#0d0d0d; --surface:#1a1a19; --raised:#222221;
+      --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781; --rule:#2c2c2a;
+      --s1:#3987e5; --s2:#d95926; --s3:#199e70;
+      --good:#3fa76d; --warn:#d9a441; --bad:#e66767;
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --page:#0d0d0d; --surface:#1a1a19; --raised:#222221;
+    --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781; --rule:#2c2c2a;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70;
+    --good:#3fa76d; --warn:#d9a441; --bad:#e66767;
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--ink);font-family:var(--sans);
+       font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:900px;margin:0 auto;padding:0 24px 96px}
+  header{padding:56px 0 8px;border-bottom:1px solid var(--rule);margin-bottom:40px}
+  h1{font-size:2.1rem;line-height:1.15;margin:0 0 10px;letter-spacing:-.02em}
+  .sub{color:var(--ink-2);font-size:1.05rem;max-width:64ch;margin:0}
+  h2{font-size:1.4rem;margin:56px 0 14px;letter-spacing:-.01em;scroll-margin-top:20px}
+  h3{font-size:1.05rem;margin:30px 0 8px;letter-spacing:-.005em}
+  p{margin:0 0 14px;max-width:74ch}
+  a{color:var(--s1)}
+  code{font-family:var(--mono);font-size:.88em;background:var(--rule);
+       padding:1px 5px;border-radius:4px}
+  pre{font-family:var(--mono);font-size:.83rem;line-height:1.55;background:var(--surface);
+      border:1px solid var(--rule);border-radius:10px;padding:16px 18px;overflow-x:auto}
+  pre code{background:none;padding:0;font-size:inherit}
+  .lede{font-size:1.06rem;color:var(--ink-2);border-left:3px solid var(--s1);
+        padding:2px 0 2px 18px;margin:0 0 26px;max-width:70ch}
+  .card{background:var(--surface);border:1px solid var(--rule);border-radius:12px;
+        padding:20px 22px;margin:18px 0}
+  .grid{display:grid;gap:14px}
+  @media(min-width:720px){ .grid.two{grid-template-columns:1fr 1fr} }
+  table{border-collapse:collapse;width:100%;font-size:.9rem;margin:14px 0}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+  th{font-weight:600;color:var(--ink-2);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}
+  td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .pill{display:inline-block;font-size:.72rem;font-weight:600;padding:2px 8px;
+        border-radius:999px;border:1px solid currentColor;letter-spacing:.02em}
+  .ok{color:var(--good)} .no{color:var(--bad)} .mid{color:var(--warn)}
+  .muted{color:var(--muted)}
+  .flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0 4px}
+  .step{font-family:var(--mono);font-size:.78rem;background:var(--raised);
+        border:1px solid var(--rule);border-radius:7px;padding:6px 10px;white-space:nowrap}
+  .step.key{border-color:var(--s1);color:var(--s1);font-weight:600}
+  .arrow{color:var(--muted);font-size:.85rem}
+  figure{margin:22px 0}
+  figcaption{font-size:.85rem;color:var(--ink-2);margin-top:10px;max-width:70ch}
+  .bar-row{display:grid;grid-template-columns:112px 1fr 86px;align-items:center;
+           gap:10px;margin:7px 0}
+  .bar-label{font-size:.85rem;color:var(--ink-2);text-align:right}
+  .bar-track{position:relative;height:22px}
+  .bar{height:22px;border-radius:0 4px 4px 0;transition:filter .12s}
+  .bar:hover{filter:brightness(1.12)}
+  .bar-val{font-family:var(--mono);font-size:.82rem;font-variant-numeric:tabular-nums;
+           color:var(--ink)}
+  .callout{border:1px solid var(--rule);border-left:3px solid var(--s2);
+           background:var(--surface);border-radius:0 10px 10px 0;padding:14px 18px;margin:18px 0}
+  .callout h4{margin:0 0 6px;font-size:.95rem}
+  .callout p:last-child{margin-bottom:0}
+  .tl{position:relative;margin:22px 0 0;padding-left:26px}
+  .tl::before{content:"";position:absolute;left:7px;top:6px;bottom:6px;width:2px;background:var(--rule)}
+  .tl-item{position:relative;margin-bottom:26px}
+  .tl-item::before{content:"";position:absolute;left:-24px;top:7px;width:10px;height:10px;
+                   border-radius:50%;background:var(--s1);
+                   box-shadow:0 0 0 3px var(--page)}
+  .tl-item.rev::before{background:var(--s2)}
+  .tl-item h3{margin:0 0 4px}
+  .verdict{font-size:.8rem;font-family:var(--mono);color:var(--ink-2);margin-top:6px}
+  nav.toc{background:var(--surface);border:1px solid var(--rule);border-radius:12px;
+          padding:16px 20px;margin:28px 0 8px;font-size:.92rem}
+  nav.toc ol{margin:8px 0 0;padding-left:20px;columns:2;column-gap:28px}
+  nav.toc li{margin:3px 0;break-inside:avoid}
+  .toggle{position:fixed;top:14px;right:14px;background:var(--surface);color:var(--ink-2);
+          border:1px solid var(--rule);border-radius:8px;padding:6px 11px;font-size:.78rem;
+          cursor:pointer;font-family:var(--sans);z-index:9}
+  footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--rule);
+         font-size:.85rem;color:var(--muted)}
+</style>
+</head>
+<body>
+<button class="toggle" id="themeBtn">◐ theme</button>
+<div class="wrap">
+
+<header>
+  <h1>LeanVFS</h1>
+  <p class="sub">A local, offline, deterministic semantic projection of a repository —
+  so a coding agent can find what it needs without reading whole files.</p>
+</header>
+
+<p class="lede">One objective, and everything below is downstream of it:
+<strong>maximise software-engineering usefulness per repository token consumed.</strong>
+The real repository stays authoritative. LeanVFS is a projection of it, not a
+compression of it.</p>
+
+<nav class="toc">
+  <strong>Contents</strong>
+  <ol>
+    <li><a href="#idea">The idea in one page</a></li>
+    <li><a href="#pipeline">The pipeline</a></li>
+    <li><a href="#model">The canonical model</a></li>
+    <li><a href="#hashes">The invalidation matrix</a></li>
+    <li><a href="#resolution">Relationship resolution</a></li>
+    <li><a href="#budget">The budget engine</a></li>
+    <li><a href="#idf">The frozen-statistics rule</a></li>
+    <li><a href="#secrets">Secrets: a choke point</a></li>
+    <li><a href="#protocol">The protocol surface</a></li>
+    <li><a href="#evolution">How it evolved</a></li>
+    <li><a href="#results">What it measures</a></li>
+    <li><a href="#open">What is still wrong</a></li>
+  </ol>
+</nav>
+
+<h2 id="idea">1 · The idea in one page</h2>
+
+<p>An agent asked “where does this codebase decide to follow a redirect?” has two
+options. It can read files until it finds out — which is accurate and enormously
+expensive — or it can consult an index. Most indexes answer with <em>locations</em>.
+LeanVFS answers with <em>compressed meaning</em>, and only then points at source.</p>
+
+<div class="flow">
+  <span class="step">search LeanVFS</span><span class="arrow">→</span>
+  <span class="step">identify symbols &amp; files</span><span class="arrow">→</span>
+  <span class="step">inspect tests, docs, relationships</span><span class="arrow">→</span>
+  <span class="step key">open only necessary real source</span>
+</div>
+
+<p>The last step is the point. Every design decision below exists to make the
+agent's final read <em>small and correct</em>, rather than to make the index clever.</p>
+
+<div class="card">
+<h3 style="margin-top:0">Ten invariants, each enforced by a test named after it</h3>
+<table>
+<tr><td><strong>1</strong></td><td>Source is authoritative — LeanVFS never modifies repository content</td></tr>
+<tr><td><strong>2</strong></td><td>Generated state is disposable — delete <code>.leanvfs/</code>, re-sync, get equivalent state</td></tr>
+<tr><td><strong>3</strong></td><td>Incremental converges to clean, at the same <code>idf_generation</code></td></tr>
+<tr><td><strong>4</strong></td><td>Bounded work per edit — O(changed file + resolution fan-in), never O(repo)</td></tr>
+<tr><td><strong>5</strong></td><td>Secrets never persist — one redaction choke point, no second path</td></tr>
+<tr><td><strong>6</strong></td><td>No rewrite cascades — reverse edges are queried, never materialised</td></tr>
+<tr><td><strong>7</strong></td><td>Deterministic — identical bytes at 1, 4 or 16 workers</td></tr>
+<tr><td><strong>8</strong></td><td>Config-driven — no consequential parameter is a Python constant</td></tr>
+<tr><td><strong>9</strong></td><td>Parsers emit canonical facts, never presentation</td></tr>
+<tr><td><strong>10</strong></td><td>Staleness is visible — never silently stale</td></tr>
+</table>
+</div>
+
+<h2 id="pipeline">2 · The pipeline</h2>
+
+<div class="flow">
+  <span class="step">discover</span><span class="arrow">→</span>
+  <span class="step">classify</span><span class="arrow">→</span>
+  <span class="step">hash</span><span class="arrow">→</span>
+  <span class="step">parse / extract</span><span class="arrow">→</span>
+  <span class="step key">canonical model</span><span class="arrow">→</span>
+  <span class="step">resolve relationships</span><span class="arrow">→</span>
+  <span class="step">priority &amp; budget</span><span class="arrow">→</span>
+  <span class="step">SQLite + FTS5</span><span class="arrow">→</span>
+  <span class="step">query engine</span>
+</div>
+
+<h3>Where parallelism is allowed, and where it is forbidden</h3>
+<p>Files are parsed in parallel. <strong>Everything ordering-sensitive is sequential and
+index-ordered.</strong> Extractions are buffered per file, merged in sorted path order,
+and only then assigned ids. Sort keys are total; no dict or set iteration reaches
+output. A test indexes the same repository at 1, 4 and 16 workers and asserts the
+canonical state is byte-identical.</p>
+
+<p class="muted">This ordering discipline is why determinism was built in at the
+canonical-model stage rather than retrofitted. Retrofitting it later is far more
+expensive, because by then every extractor has quietly baked in an assumption
+about arrival order.</p>
+
+<h2 id="model">3 · The canonical model</h2>
+
+<p>Parsers emit <em>facts</em>, never rendered text. Rendering, indexing and serving all
+consume the canonical model separately — which is what makes format experiments cheap,
+and format is one of the highest-value things to experiment with.</p>
+
+<div class="grid two">
+  <div class="card">
+    <h3 style="margin-top:0">Stable identity</h3>
+    <pre><code>python:src/auth/service.py:method:
+  AuthService.login(email,password)</code></pre>
+    <p style="font-size:.9rem;margin-bottom:0">Language, repo-relative path, kind, qualified
+    name, and a discriminator built from parameter <strong>names only</strong> — so adding a
+    type annotation does not reassign identity. <strong>Never line-dependent.</strong></p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0">Fact-kind registry</h3>
+    <p style="font-size:.9rem">Every fact kind declares its value grammar, cardinality and
+    default priority. Extractors emit <em>through</em> the registry, and an unregistered
+    kind is a <strong>hard error</strong>, not a warning.</p>
+    <p style="font-size:.9rem;margin-bottom:0" class="muted">Stringly-typed values rot without
+    this. The registry is the discipline that stops it.</p>
+  </div>
+</div>
+
+<h2 id="hashes">4 · The invalidation matrix</h2>
+
+<p>Four hashes per symbol. Each one gates specific work — that is what makes them
+load-bearing rather than decorative.</p>
+
+<table>
+<thead><tr><th>Condition</th><th>Action</th></tr></thead>
+<tbody>
+<tr><td><code>source_hash</code> unchanged</td><td>Skip the file entirely. No parse, no writes.</td></tr>
+<tr><td><code>source_hash</code> changed, <code>structure_hash</code> unchanged</td><td>Formatting or comment movement only. Update line offsets. <strong>No</strong> fact recomputation, <strong>no</strong> re-resolution.</td></tr>
+<tr><td><code>interface_hash</code> changed</td><td>Recompute signature facts; mark <strong>inbound</strong> edges for re-resolution — callers may no longer match.</td></tr>
+<tr><td><code>behavior_hash</code> changed</td><td>Recompute call, effect, exception and keyword facts; re-resolve this symbol's <strong>outbound</strong> edges only.</td></tr>
+<tr><td><code>doc_hash</code> changed</td><td>Doc and comment facts only.</td></tr>
+<tr><td><code>metadata_hash</code> changed</td><td>Decorator and attribute facts only.</td></tr>
+<tr><td>Symbol absent from the new parse</td><td>Delete it; demote inbound edges to unresolved.</td></tr>
+</tbody>
+</table>
+
+<p><strong>Measured on httpx:</strong> a one-line edit reparses <strong>1 file and skips 124</strong>,
+end to end in <strong>69.7 ms</strong> against a full sync of 1,105 ms.</p>
+
+<h2 id="resolution">5 · Relationship resolution</h2>
+
+<p>This is the hardest subsystem, and it is deliberately <em>not</em> a side effect of
+parsing. Resolving <code>repo.find_by_email</code> to a real symbol without a type
+checker is the accuracy problem in this project.</p>
+
+<p><strong>Two phases.</strong> Phase A runs per file, in parallel, and emits <em>unresolved
+references</em> — raw target text plus syntactic hints. Phase B runs once, sequentially,
+after every file is parsed, against the complete symbol table. A reference cannot be
+resolved against a symbol table that is still being built.</p>
+
+<table>
+<thead><tr><th>Tier</th><th>Rule</th><th class="num">Confidence</th><th class="num">httpx (CALLS)</th></tr></thead>
+<tbody>
+<tr><td><strong>R0</strong></td><td>Same file, or same class via the receiver</td><td class="num">1.00</td><td class="num">15.4%</td></tr>
+<tr><td><strong>R1</strong></td><td>Resolved through the import graph</td><td class="num">0.90</td><td class="num">5.1%</td></tr>
+<tr><td><strong>R2</strong></td><td>Name unique across the repository</td><td class="num">0.70</td><td class="num">33.0%</td></tr>
+<tr><td><strong>R3</strong></td><td>Ambiguous — emit up to 3 candidates</td><td class="num">min(0.5, 1/N)</td><td class="num">27.4%</td></tr>
+<tr><td><strong>R4</strong></td><td>Unresolved — record the raw text anyway</td><td class="num">0.30</td><td class="num">19.1%</td></tr>
+</tbody>
+</table>
+
+<p><strong>R4 edges are still emitted.</strong> “Calls something named <code>stripe.charge</code>”
+is useful even unresolved. A reference is never dropped for being unresolvable.</p>
+
+<div class="callout">
+<h4>The trap that silently breaks incremental correctness</h4>
+<p>Adding a file can resolve references that were dangling <em>elsewhere</em>; deleting one
+dangles references that were resolved. A pipeline that only touches the changed file
+corrupts the graph without any error. LeanVFS keeps an <code>unresolved_refs</code> table
+indexed on name, and on deletion re-resolves exactly the referring files — a bounded
+fan-in lookup, never a repository scan.</p>
+</div>
+
+<h2 id="budget">6 · The budget engine</h2>
+
+<p>This is where the product thesis is actually enforced, so it gets an algorithm rather
+than a list of knobs.</p>
+
+<pre><code>1. sort by (priority asc, confidence desc, kind asc, value asc)   # total order
+2. greedily admit while cumulative_tokens + cost(fact) &lt;= budget
+3. within a kind, respect per-kind caps BEFORE the global budget
+4. record every dropped fact as (kind, priority, count, tokens_would_have_cost)
+5. emit a budget_report alongside the payload</code></pre>
+
+<p><strong>The drop record is not optional.</strong> “You spent 34% of the file budget on
+keywords and dropped 12 test expectations” is the signal needed to reallocate the
+budget. A truncation the caller cannot see is a correctness bug, not a saving.</p>
+
+<h3>The money operation</h3>
+<p><code>get_context</code> is assembled <em>by policy</em>, not from a fixed field list.
+Identity, location and signature are unconditional. Everything else competes for the
+remainder in a configured order: exceptions → side effects → invariants → test
+expectations → resolved calls → doc refs → keywords. <strong>Never the implementation
+body.</strong> The assembly order is config, because it is one of the most valuable
+things to tune.</p>
+
+<h2 id="idf">7 · The frozen-statistics rule</h2>
+
+<div class="callout">
+<h4>The most expensive latent bug in the original design</h4>
+<p>Keyword scores were specified as <code>structural weight × repository-wide IDF</code>.
+But repository-wide IDF is a <em>global</em> statistic: editing one file shifts document
+frequencies, which changes keyword selection in <strong>unrelated files</strong>. So either
+incremental state diverges from a clean rebuild (breaking invariant 3), or every edit
+reparses the repository (breaking invariant 4). Both cannot hold.</p>
+</div>
+
+<p><strong>Resolution:</strong> IDF is a versioned snapshot. It is computed during a full sync,
+frozen under an <code>idf_generation</code>, and incremental updates <em>read</em> it and never
+write it. Equivalence is then defined against a rebuild <em>at the same generation</em>,
+which makes invariant 3 both true and testable.</p>
+
+<p>The mechanism is a capability token: <code>compute_idf()</code> requires a
+<code>GlobalStatsPermit</code>, and <code>full_sync()</code> is the only function that mints one.
+An incremental path <em>structurally cannot</em> recompute a corpus statistic — it is not a
+convention to remember, it is a type error.</p>
+
+<p class="muted">The rule generalises: no global statistic may be read during an
+incremental update unless it is generation-frozen. Any future corpus-wide signal —
+call frequency, symbol popularity, path priors — gets the same treatment.</p>
+
+<h2 id="secrets">8 · Secrets: a choke point, not a policy</h2>
+
+<p>“Secrets never persist” needs a mechanism. Every fact value passes through exactly
+<strong>one</strong> <code>redact()</code> function before it can reach SQLite, and the fact-insert
+API is private and accepts only a <code>Redacted</code> wrapper. There is no second path
+to forget about.</p>
+
+<p>The identifier is kept; the value never is. <code>STRIPE_API_KEY</code> survives as a name;
+its contents become <code>&lt;redacted&gt;</code>. The test injects fake keys, JWTs, PEM blocks
+and connection strings, then scans <em>every text column of every table</em>, the FTS index,
+the rendered output and the protocol responses. It may not be skipped.</p>
+
+<h2 id="protocol">9 · The protocol surface</h2>
+
+<p>The benchmark's entire view of LeanVFS is JSONL over stdin/stdout. stdout carries
+protocol traffic and nothing else; all diagnostics go to stderr. A stray
+<code>print()</code> is classified as a protocol error — which is the correct outcome.</p>
+
+<pre><code>{"id":"2","op":"search","args":{"query":"redirect handling","limit":10},
+ "token_budget":800,"format":"compact"}
+
+{"id":"2","status":"ok","result":{...},
+ "meta":{"tokens_approx":742,"truncated":true,"dropped":{"keyword":11},
+         "index_state":"ok","generation":184,"idf_generation":12}}</code></pre>
+
+<p><code>index_state</code> is how “wrong because stale” is distinguished from “wrong because
+the index is bad” — a distinction that otherwise costs many confusing debugging sessions.
+<code>truncated</code> must be honest: an agent that cannot tell it received a partial answer
+does not know to ask for more.</p>
+
+<h3>The compact format</h3>
+<p>Default output is line-oriented and low-punctuation, not JSON. A JSON envelope for the
+same content costs roughly twice the tokens, almost all of it structural noise.</p>
+
+<pre><code>@lvfs 1
+@file src/auth/auth_service.py
+lang=python class=source lines=612
+imports.local=models.User,repositories.UserRepo
+exports=AuthService,InvalidCredentials,AccountLocked
+
+  fn login(email:str,password:str)->TokenPair async L47-128
+    kw=login,password,user,jwt
+    call=repo.find_by_email,password.verify,tokens.issue
+    fx=db:r,crypto
+    throws=InvalidCredentials,AccountLocked
+    note[security]=locked users must never receive tokens</code></pre>
+
+<h2 id="evolution">10 · How the architecture evolved</h2>
+
+<p>Six things changed after the design met measurement. Three were bugs the benchmark
+found that code review had not; two were <em>my own design priors being overturned</em>;
+one was a hypothesis that failed and was kept anyway as a recorded negative result.</p>
+
+<div class="tl">
+
+  <div class="tl-item rev">
+    <h3>Rust → Python <span class="pill mid">reversed</span></h3>
+    <p>The design argued Rust was load-bearing for an indexer: parse throughput, memory,
+    cold start. True in principle. But nothing about <em>token efficiency</em> is
+    language-dependent — it is decided by the canonical model, resolution accuracy, the
+    priority ladder and the renderer. Building in Rust first meant paying a toolchain
+    cost before learning whether the design saved any tokens at all.</p>
+    <p class="verdict">Python, with a <em>measured</em> re-entry criterion: port when the
+    design passes its gates and misses the latency budget for interpreter-bound reasons.
+    Cold index currently runs at 3,235 KB/s against a 400 KB/s floor.</p>
+  </div>
+
+  <div class="tl-item">
+    <h3>IDF made a frozen snapshot <span class="pill ok">design fix</span></h3>
+    <p>Three stated invariants were mutually contradictory (§7). Rather than quietly
+    dropping one, IDF became generation-frozen and equivalence was redefined against a
+    rebuild at the same generation. The permit token turned the rule from a convention
+    into something the type system enforces.</p>
+    <p class="verdict">Caught by reading the spec against itself, before any code existed.</p>
+  </div>
+
+  <div class="tl-item">
+    <h3>On-disk mirror switched off by default <span class="pill mid">deferred</span></h3>
+    <p>The original design materialised a <code>.lvfs</code> text tree on disk, atomically
+    rewritten on every edit. That is a second consistency domain — its own staleness bugs,
+    write amplification and golden tests — serving a consumer that did not yet exist.</p>
+    <p class="verdict">Rendering is now on-demand from SQLite, with a test asserting the two
+    paths are byte-identical. Grep-over-projection stays a flag, to be earned by an
+    experiment rather than assumed.</p>
+  </div>
+
+  <div class="tl-item rev">
+    <h3>Query-side stoplist + IDF weighting <span class="pill no">failed, kept as config</span></h3>
+    <p>18 of 50 intent-phrased probes were scoring exactly zero. Diagnosis looked
+    conclusive: query terms were not normalised the way indexed terms were, so a
+    natural-language question was scored mostly on its filler — one result was literally
+    a docs theme colour matching on the word “media”. Symmetric normalisation is the
+    textbook fix.</p>
+    <p><strong>It measured worse.</strong> nDCG@10 fell from 0.335 to 0.317.</p>
+    <p class="verdict">Reverted to what measured best. The knobs survive as default-off
+    config, because “we tried it and it lost” is a result worth being able to re-run.</p>
+  </div>
+
+  <div class="tl-item rev">
+    <h3>Builtin call suppression <span class="pill no">prior overturned</span></h3>
+    <p>Two bugs in one place. The adapter policy was built from a single config section,
+    so every <code>calls.*</code> key fell back to an inline default — builtin suppression
+    had <em>never run</em>. Every lookup carried a default, so nothing failed; it just
+    quietly behaved differently. This is precisely the failure mode “config over
+    constants” is meant to prevent.</p>
+    <p>With suppression finally working, retrieval got <em>worse</em>. The design's
+    assumption that <code>str</code>, <code>len</code> and <code>isinstance</code> were noise was
+    wrong: they are lexical surface worth +1.3% nDCG@10, at zero cost in agent-visible
+    tokens.</p>
+    <p class="verdict">Default flipped to record them, with the measurement written beside
+    the setting.</p>
+  </div>
+
+  <div class="tl-item">
+    <h3>Symbol ids preserved across re-parse <span class="pill ok">bug found by equivalence check</span></h3>
+    <p>Incremental sync cleared a changed file's derived rows — including its symbol rows.
+    Re-inserting gave every symbol a fresh id while edges from <em>other</em> files still
+    referenced the old one. A one-file edit silently dangled inbound relationships across
+    the repository, with no error anywhere.</p>
+    <p class="verdict">Symbols are now upserted on <code>stable_key</code> — which is exactly
+    why identity was defined to be line-independent — and only genuinely vanished symbols
+    are pruned. Found by <code>leanvfs verify</code>, not by review.</p>
+  </div>
+
+  <div class="tl-item">
+    <h3>Result diversification added <span class="pill ok">+1% nDCG</span></h3>
+    <p>Measured, not guessed: in the top ten results, ripgrep returns 10.0 distinct files;
+    LeanVFS returned 5.1 and a plain AST index 3.9. Symbol indexes spend their top-k on
+    redundant same-file hits, which covers less of a multi-file answer for the same tokens.</p>
+    <p class="verdict">Cap hits per file, demote the surplus rather than dropping it.
+    Swept 0/1/2/3/5/8 — three is best.</p>
+  </div>
+
+</div>
+
+<h2 id="results">11 · What it measures</h2>
+
+<p>50 hand-authored tasks over <code>encode/httpx</code> at a pinned commit, each with three
+paraphrased probes. Lower is better.</p>
+
+<figure>
+  <div id="chart" role="img"
+       aria-label="Repository tokens per task: Raw 13,622; ripgrep 3,865; MinimalAST 1,809; CTags 1,433; LeanVFS 1,013.">
+  </div>
+  <figcaption><strong>Repository tokens consumed per task.</strong> LeanVFS uses
+  <strong>13.5× fewer tokens than raw file reading</strong> — while also scoring the highest
+  retrieval quality of the five. Every bar is directly labelled; the table below carries the
+  same numbers.</figcaption>
+</figure>
+
+<table>
+<thead><tr><th>Candidate</th><th class="num">Tokens/task</th><th class="num">nDCG@10</th><th class="num">Worst case</th><th class="num">Correctness</th><th class="num">Tokens/correct</th></tr></thead>
+<tbody>
+<tr><td>Raw file reading</td><td class="num">13,622</td><td class="num">0.274</td><td class="num">0.110</td><td class="num">0.009</td><td class="num">5,052</td></tr>
+<tr><td>ripgrep</td><td class="num">3,865</td><td class="num">0.322</td><td class="num"><strong>0.162</strong></td><td class="num">0.092</td><td class="num">1,488</td></tr>
+<tr><td>MinimalAST</td><td class="num">1,809</td><td class="num">0.297</td><td class="num">0.123</td><td class="num">0.005</td><td class="num">564</td></tr>
+<tr><td>CTags</td><td class="num">1,433</td><td class="num">0.224</td><td class="num">0.086</td><td class="num">0.000</td><td class="num">—</td></tr>
+<tr><td><strong>LeanVFS</strong></td><td class="num"><strong>1,013</strong></td><td class="num"><strong>0.335</strong></td><td class="num">0.112</td><td class="num"><strong>0.369</strong></td><td class="num"><strong>435</strong></td></tr>
+</tbody>
+</table>
+
+<p class="muted">Correctness figures come from deterministic policies, not a language
+model. They are comparable to each other and are <em>not</em> a claim about what an LLM
+would score.</p>
+
+<h2 id="open">12 · What is still wrong</h2>
+
+<p>Reported because a system description that only lists its wins is an advertisement.</p>
+
+<div class="grid two">
+  <div class="card">
+    <h3 style="margin-top:0"><span class="pill no">missed</span> Call resolution</h3>
+    <p style="margin-bottom:0">R0+R1 is <strong>20.5%</strong> of CALLS edges against a 60%
+    design target. The high-confidence tiers are thin; most edges land in R2/R3. This is
+    the largest known lever on retrieval quality and it has not been pulled.</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0"><span class="pill no">missed</span> Index size</h3>
+    <p style="margin-bottom:0"><strong>3.96×</strong> source bytes against a 1.5× ceiling.
+    A system metric rather than an agent-token cost, but well outside budget.</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0"><span class="pill mid">weakness</span> Paraphrase brittleness</h3>
+    <p style="margin-bottom:0">LeanVFS has the best <em>average</em> retrieval score and one
+    of the weaker <em>worst cases</em> across the three paraphrases. ripgrep degrades more
+    gracefully when the question is phrased unlike the code.</p>
+  </div>
+  <div class="card">
+    <h3 style="margin-top:0"><span class="pill mid">unmeasured</span> No LLM has been run</h3>
+    <p style="margin-bottom:0">The agent track is driven by deterministic policies. The
+    model-backed harness and its replay cache are not built, so no figure here is an
+    LLM result.</p>
+  </div>
+</div>
+
+<footer>
+  Generated from the LeanBench + LeanVFS repository. Every number on this page is
+  reproducible from the run artifacts in <code>runs/</code> via the formulas in
+  <code>docs/scoring.md</code>. Full results, including the unflattering ones, in
+  <code>RESULTS.md</code>.
+</footer>
+
+</div>
+
+<script>
+(function(){
+  var btn = document.getElementById('themeBtn');
+  btn.addEventListener('click', function(){
+    var cur = document.documentElement.getAttribute('data-theme');
+    var next = cur === 'dark' ? 'light' : (cur === 'light' ? 'dark'
+              : (matchMedia('(prefers-color-scheme: dark)').matches ? 'light' : 'dark'));
+    document.documentElement.setAttribute('data-theme', next);
+  });
+
+  var data = [
+    {name:'Raw reading', v:13622},
+    {name:'ripgrep',     v:3865},
+    {name:'MinimalAST',  v:1809},
+    {name:'CTags',       v:1433},
+    {name:'LeanVFS',     v:1013, hi:true}
+  ];
+  var max = 13622;
+  var host = document.getElementById('chart');
+  data.forEach(function(d){
+    var row = document.createElement('div');
+    row.className = 'bar-row';
+    var pct = Math.max((d.v / max) * 100, 0.8);
+    row.innerHTML =
+      '<div class="bar-label">' + d.name + '</div>' +
+      '<div class="bar-track"><div class="bar" style="width:' + pct + '%;background:' +
+        (d.hi ? 'var(--s1)' : 'var(--muted)') + '" title="' +
+        d.name + ': ' + d.v.toLocaleString() + ' tokens/task"></div></div>' +
+      '<div class="bar-val">' + d.v.toLocaleString() + '</div>';
+    host.appendChild(row);
+  });
+})();
+</script>
+</body>
+</html>
