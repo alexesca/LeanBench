@@ -37,6 +37,11 @@ from .store import Store
 from .symbolindex import SqlSymbolIndex
 from .telemetry import Telemetry
 
+#: Recorded as `source_hash` when a file cannot be read. A stable value matters: an empty
+#: string never equals a real digest, so an unreadable file would be re-parsed on every
+#: query for the lifetime of the index.
+UNREADABLE_SENTINEL = "unreadable"
+
 
 @dataclass
 class IndexResult:
@@ -98,6 +103,10 @@ class Indexer:
                 language=disc.language,
                 file_class=disc.file_class,
                 parse_state="failed",
+                # A stable sentinel, not "": an empty hash never equals a real digest, so
+                # an unreadable file would be re-parsed on every query for the lifetime of
+                # the index. It reparses as soon as it becomes readable again.
+                source_hash=UNREADABLE_SENTINEL,
                 error=f"{type(exc).__name__}: {exc}",
             )
             ext = FileExtraction(file=rec)
@@ -276,6 +285,7 @@ class Indexer:
         known = self.store.file_hashes()
         seen: set[str] = set()
         to_extract: list[Discovered] = []
+        max_bytes = int(self.cfg.get("discovery.max_file_bytes", 2 << 20))
 
         for disc in discovered:
             seen.add(disc.rel_path)
@@ -284,10 +294,19 @@ class Indexer:
                 to_extract.append(disc)
                 continue
             try:
-                max_bytes = int(self.cfg.get("discovery.max_file_bytes", 2 << 20))
-                with open(disc.abs_path, "rb") as handle:  # noqa: PTH123 - hot path
-                    digest = digest_bytes_(handle.read(max_bytes + 1))
+                # Hash through the SAME reader the full sync uses. Computing the digest
+                # two different ways is a bug factory: an oversized file was hashed over
+                # max_bytes on write and max_bytes+1 here, so it never compared equal and
+                # was re-parsed on every single query, forever.
+                raw, _text, _encoding = read_source(disc.abs_path, max_bytes)
+                digest = digest_bytes_(raw)
             except OSError:
+                # Unreadable now. If it was already unreadable when we indexed it, that is
+                # not a change -- otherwise a permission-denied file churns forever too.
+                if previous[1] == UNREADABLE_SENTINEL:
+                    self.telemetry.incr("hash_skips")
+                    result.skipped += 1
+                    continue
                 to_extract.append(disc)
                 continue
             if digest == previous[1]:
