@@ -20,6 +20,12 @@ from leanbench.config import parse_cli_overrides, resolve_config
 from leanbench.corpus import load_corpus
 from leanbench.evaluator import evaluate
 from leanbench.kernel.errors import LeanBenchError
+from leanbench.noise import (
+    dispersion,
+    gate_raw_vs_semantic,
+    profile_key,
+    separation_matrix,
+)
 from leanbench.scoring.compare import compare_runs
 from leanbench.scoring.task_rules import (
     discrimination_index,
@@ -364,3 +370,162 @@ def main(argv: list[str] | None = None) -> int:
     except typer.Exit as exc:
         return int(exc.exit_code)
     return 0
+
+
+#: `tokens` is the signature dimension and is lower-is-better, so it is negated to keep
+#: "a larger delta means the row is better" true for every metric in the matrix.
+TOKENS_METRIC = "tokens"
+
+
+def _task_scores(run_dir: Path, metric: str) -> dict[str, float]:
+    metrics = read_json(run_dir, "metrics.json")
+    if metric == TOKENS_METRIC:
+        return {
+            t["task_id"]: -float(t["tokens_returned_total"])
+            for t in metrics["retrieval_tasks"]
+        }
+    return {t["task_id"]: float(t["mean"].get(metric, 0.0)) for t in metrics["retrieval_tasks"]}
+
+
+@app.command()
+def noise(
+    candidate: Path = typer.Option(..., "--candidate"),
+    suite: str = typer.Option(..., "--suite"),
+    repetitions: int = typer.Option(10, "--repetitions"),
+    runs_dir: Path | None = typer.Option(None, "--runs-dir"),
+    out: Path | None = typer.Option(None, "--out", help="Where to write noise-profile.json"),
+) -> None:
+    """Measure the noise floor by re-running an identical configuration N times.
+
+    Retrieval-track noise must be exactly zero. If it is not, the nondeterminism is ours,
+    and this command is how we find out rather than discovering it as a phantom result.
+    """
+    config = _config()
+    suite_path = find_suite(suite, SUITE_SEARCH)
+    metric = config.get_str("retrieval.primary_metric")
+
+    per_repetition: list[dict[str, float]] = []
+    headline: list[float] = []
+    for index in range(repetitions):
+        result = evaluate(
+            config=config, manifest_path=candidate, suite_path=suite_path,
+            runs_dir=runs_dir, run_id_seed=f"noise-{index}",
+        )
+        per_repetition.append(_task_scores(result.run_dir, metric))
+        headline.append(float(result.metrics.retrieval_aggregate.get(metric, 0.0)))
+
+    noisy = config.get_float("suite.unstable_cv") / 4.0
+    unusable = config.get_float("suite.unstable_cv")
+    overall = dispersion(metric, headline, noisy_above=noisy, unusable_above=unusable)
+
+    per_task = {}
+    for task_id in sorted(per_repetition[0]):
+        values = [rep.get(task_id, 0.0) for rep in per_repetition]
+        per_task[task_id] = dispersion(
+            task_id, values, noisy_above=noisy, unusable_above=unusable
+        ).as_dict()
+
+    key = profile_key(suite=suite_path.name, harness="retrieval", model="none",
+                      model_settings="deterministic")
+    profile = {
+        "key": key,
+        "suite": suite_path.name,
+        "track": "retrieval",
+        "candidate": str(candidate),
+        "repetitions": repetitions,
+        "metric": metric,
+        "overall": overall.as_dict(),
+        "per_task": per_task,
+    }
+
+    _echo(f"noise profile {key}   {repetitions} repetitions of {metric}")
+    _echo(f"  mean {overall.mean:.6f}   stdev {overall.stdev:.6f}   CV {overall.cv:.4%}")
+    for n in sorted(overall.mde_at):
+        _echo(f"  minimum detectable effect at n={n:<3d} {overall.mde_at[n]:.6f}")
+    counts: dict[str, int] = {}
+    for row in per_task.values():
+        counts[row["classification"]] = counts.get(row["classification"], 0) + 1
+    _echo("  per-task: " + ", ".join(f"{k}={v}" for k, v in sorted(counts.items())))
+
+    if overall.stdev == 0.0:
+        typer.secho("  retrieval-track variance is exactly zero, as required.",
+                    fg=typer.colors.GREEN)
+    else:
+        typer.secho(
+            f"  NONDETERMINISM: the retrieval track varied by {overall.stdev:.6g}. "
+            "This is a defect in LeanBench or in the candidate, not a property of the "
+            "measurement; fix it before trusting any comparison.",
+            fg=typer.colors.RED,
+        )
+
+    target = out or (Path(runs_dir) if runs_dir else Path(config.get_str("run.runs_dir")))
+    target = target / "noise-profile.json" if target.is_dir() or not target.suffix else target
+    target.parent.mkdir(parents=True, exist_ok=True)
+    target.write_text(json.dumps(profile, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    _echo(f"  wrote {target}")
+    if overall.stdev != 0.0:
+        raise typer.Exit(code=1)
+
+
+@app.command()
+def separation(
+    runs: list[Path] = typer.Argument(..., help="Run directories, one per candidate"),
+    raw: str = typer.Option("RawRepository", "--raw"),
+    semantic: str = typer.Option("MinimalAST", "--semantic"),
+    threshold: float = typer.Option(0.474, "--threshold"),
+    metric: str = typer.Option(
+        TOKENS_METRIC, "--metric",
+        help="'tokens' (the signature dimension the gate is defined on) or a retrieval metric",
+    ),
+    as_json: bool = typer.Option(False, "--json"),
+) -> None:
+    """Pairwise effect size between candidates: the benchmark's discriminative power.
+
+    If the reference baselines are not separable, the suite is measuring the agent's
+    stubbornness rather than the candidate.
+    """
+    config = _config()
+    if metric == "primary":
+        metric = config.get_str("retrieval.primary_metric")
+    scores = {}
+    for run_dir in runs:
+        name = read_json(run_dir, "metrics.json")["candidate"]
+        scores[name] = _task_scores(run_dir, metric)
+
+    matrix = separation_matrix(scores)
+    gate = gate_raw_vs_semantic(matrix, raw=raw, semantic=semantic, threshold=threshold)
+    if as_json:
+        _echo(json.dumps({"metric": metric, "matrix": matrix, "gate": gate},
+                         indent=2, sort_keys=True))
+        raise typer.Exit(code=0 if gate["passed"] else 1)
+
+    names = matrix["candidates"]
+    width = max(len(n) for n in names) + 1
+    label = "repository tokens (lower is better)" if metric == TOKENS_METRIC else metric
+    _echo(f"Cliff's delta on {label} (row vs column; |d|>=0.33 medium, >=0.474 large)")
+    _echo(" " * width + "".join(f"{n[:10]:>11}" for n in names))
+    for row in names:
+        cells = "".join(
+            f"{'    --   ':>11}" if row == col
+            else f"{matrix['delta'][row][col]:>11.3f}"
+            for col in names
+        )
+        _echo(f"{row:<{width}}{cells}")
+    _echo("")
+    if gate.get("delta") is None:
+        typer.secho(f"  gate not evaluable: {gate['reason']}", fg=typer.colors.YELLOW)
+        raise typer.Exit(code=1)
+    verdict = "PASSED" if gate["passed"] else "FAILED"
+    colour = typer.colors.GREEN if gate["passed"] else typer.colors.RED
+    typer.secho(
+        f"  discrimination gate {verdict}: |delta({raw}, {semantic})| = "
+        f"{abs(gate['delta']):.3f} ({gate['magnitude']}) against threshold {threshold}",
+        fg=colour,
+    )
+    if not gate["passed"]:
+        typer.secho(
+            "  The suite is not usable for headline claims until this passes. "
+            "Adding corpus does not fix it.",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
