@@ -34,6 +34,10 @@ Install LeanVFS in this repo and use it for all code search from now on.
    The index self-updates on every query, so it is never stale. Do not run a
    sync command manually.
 
+   Works on Python (deepest support), TypeScript/JavaScript, Go, Rust, Java,
+   Kotlin, C#, Ruby, PHP, Swift, C/C++, Scala, SQL, shell, Markdown and config
+   files.
+
 4. Add the index directory to .gitignore if you used --state-dir:
    echo ".leanvfs/" >> .gitignore
    (By default the index lives in the OS cache dir, outside the repo, so this

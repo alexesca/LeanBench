@@ -56,8 +56,18 @@ with Read(offset/limit). Do not read whole files first.
 | `leanvfs verify` | assert the incremental index equals a clean rebuild |
 | `leanvfs config show` | every tunable, with the layer each value came from |
 
-Python is fully supported (tree-sitter). Other languages fall back to a generic
-symbol extractor, plus dedicated Markdown and config-file extractors.
+### Language support
+
+| Tier | Languages | What you get |
+|---|---|---|
+| **Rich** (tree-sitter) | Python | symbols, signatures, calls, exceptions, side effects, docstrings, test→target links, imports, keywords |
+| **Declarations** (config patterns) | TypeScript, JavaScript, Go, Rust, Java, Kotlin, C#, Ruby, PHP, Swift, C/C++, Scala, SQL, shell | classes, functions, methods, structs, interfaces, traits, enums — name, kind and line range |
+| **Structured** | Markdown, JSON, YAML, TOML, INI | headings, concepts, config keys, env var names |
+| **Metadata** | anything else | path, class, size — never nothing |
+
+The declaration tier is deliberately shallow: it finds *what* is declared and *where*,
+not what it calls. That is enough to replace grep. Patterns live in config
+(`leanvfs config show`), so adding a language is an edit, not a code change.
 
 ### See it on your own code
 
