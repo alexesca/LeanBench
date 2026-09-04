@@ -917,6 +917,10 @@ class _State:
             base = name.split(".")[-1]
             if base in _TYPING_NOISE or not _CAP.match(base):
                 continue
+            # `receiver` is the dotted prefix, if there is one. Passing the whole
+            # dotted name made a bare annotation resolve against itself and surface as
+            # `QueryParamTypes.QueryParamTypes` in the unresolved-edge table.
+            receiver = name[: -(len(base) + 1)] if name.endswith("." + base) else ""
             self.ref(
                 UnresolvedRef(
                     name=base,
@@ -924,7 +928,7 @@ class _State:
                     source_symbol_key=key,
                     source_file=self.path,
                     line=line,
-                    receiver=name,
+                    receiver=receiver,
                 )
             )
 

@@ -120,7 +120,13 @@ class Indexer:
             ext = FileExtraction(file=rec)
             return ext
 
-        policy = dict(self.cfg.for_path(disc.rel_path).section("extraction") or {})
+        # The adapter policy is the FULL resolved config for this path, flattened.
+        # It used to be only the `extraction` section, which silently disabled every
+        # `calls.*` / `comments.*` knob the adapters read: each lookup carries a
+        # default, so a missing key produces no error, just quietly different
+        # behaviour. Passing the resolved view keeps adapters free of config
+        # resolution while guaranteeing the keys they ask for actually exist.
+        policy = dict(self.cfg.for_path(disc.rel_path).values)
         ctx = ExtractionContext(
             rel_path=disc.rel_path,
             source=raw,
