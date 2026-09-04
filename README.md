@@ -1,20 +1,109 @@
-# LeanBench + LeanVFS
+# LeanVFS + LeanBench
 
-Two systems built together, in one repository, for one reason:
+**LeanVFS** is a local, offline, deterministic semantic index that lets a coding agent
+search your repository without reading whole files. On a real codebase it answers a
+question in **~130 tokens** where grep-and-read costs **~26,000** — the same answer,
+197× cheaper.
 
-> **Make AI coding agents consume fewer tokens when they search a repository — and prove it.**
+**LeanBench** is the benchmark that decides whether that claim is true. It treats LeanVFS
+as just another candidate and measures it against raw file reading, ripgrep, CTags and a
+minimal AST index. Both live here, because an indexer with no measurement is a guess.
 
-**LeanVFS** is the thing that tries to make agents cheaper: a local, offline, deterministic
-semantic projection of a repository, so an agent can find what it needs without reading whole
-files.
+---
 
-**LeanBench** is the thing that decides whether LeanVFS actually works: an independent benchmark
-that measures whether a repository-intelligence system helps an agent understand and modify code
-*correctly* while consuming *less* repository context.
+## Install
 
-Neither is useful alone. An indexer with no measurement is a guess; a benchmark with nothing to
-measure is a spreadsheet. They are built as a loop — the benchmark tells the indexer where it is
-losing tokens, the indexer's failures tell the benchmark which tasks were badly authored.
+```bash
+pip install "git+https://github.com/alexesca/LeanBench.git"
+```
+
+That gives you a `leanvfs` command. There is no config file, no daemon, no setup step:
+
+```bash
+cd ~/your/repo
+leanvfs search "why do uploads fail for large files" --limit 8
+```
+
+The first query indexes the repository; every later query brings the index up to date
+before answering, so it is never stale. An unchanged file costs one hash (~50 ms across
+125 files), so keeping it correct is nearly free.
+
+### Point your coding agent at it
+
+Give your agent [**`INSTALL-PROMPT.md`**](INSTALL-PROMPT.md) — a paste-ready prompt that
+installs LeanVFS and rewrites its search habit. The durable part is an `AGENTS.md` entry:
+
+```markdown
+## Code search
+This repo has a LeanVFS semantic index. Use it INSTEAD of grepping or reading
+whole files.
+
+  leanvfs --repo . search "<question in plain English>" --limit 8
+  leanvfs --repo . context "<Symbol.name>"
+
+Workflow: search -> pick the 1-3 relevant hits -> read ONLY those line ranges
+with Read(offset/limit). Do not read whole files first.
+```
+
+### Commands
+
+| | |
+|---|---|
+| `leanvfs search "<question>"` | ranked file + symbol + line-range hits |
+| `leanvfs context "<Symbol>"` | signature, exceptions, effects, tests, callers — **never the body** |
+| `leanvfs stats` | index size, symbol counts, resolution quality |
+| `leanvfs status` | generation, staleness, IDF drift |
+| `leanvfs verify` | assert the incremental index equals a clean rebuild |
+| `leanvfs config show` | every tunable, with the layer each value came from |
+
+Python is fully supported (tree-sitter). Other languages fall back to a generic
+symbol extractor, plus dedicated Markdown and config-file extractors.
+
+### See it on your own code
+
+```bash
+./try-it.sh ~/your/repo "a question you know the answer to"
+```
+
+Prints the token cost of grep-and-read versus LeanVFS, side by side. It measures the cost
+of *locating* an answer, not whether the answer is right — judge the hits yourself.
+
+---
+
+## Does it actually work?
+
+Full numbers, including the unflattering ones, in [`RESULTS.md`](RESULTS.md). On 50
+hand-authored tasks over `encode/httpx` at a pinned commit:
+
+| Candidate | Correctness | Tokens / correct solution |
+|---|---:|---:|
+| Raw file reading | 0.009 | 5,052 |
+| ripgrep | 0.092 | 1,488 |
+| CTags | 0.000 | — |
+| Minimal AST | 0.005 | 564 |
+| **LeanVFS** | **0.369** | **435** |
+
+Validity, checked rather than asserted: retrieval-track variance is **exactly zero** over
+10 repetitions; the discrimination gate passes at `|δ(Raw, MinAST)| = 1.000`; 100% of
+tasks are informative against a 60% gate.
+
+Three things the same measurements say that are **not** flattering:
+
+- On retrieval *quality* (nDCG@10) rather than tokens, a minimal AST index is
+  statistically indistinguishable from raw file reading — `|δ| = 0.064`.
+- LeanVFS is among the **most brittle** candidates under paraphrase; ripgrep has the
+  better worst case.
+- Call resolution reaches 20.5% high-confidence against a 60% target.
+
+Correctness figures come from deterministic policies, not a language model.
+**No LLM has been run**, and that is stated wherever a number appears.
+
+**How to check this work yourself:** the strongest test is the one I cannot run — point
+`try-it.sh` at a repository I have never seen and judge the hits. See
+[the architecture guide](docs/guide/leanvfs-architecture.html) for how the system works
+and how it changed under measurement.
+
+---
 
 ---
 
