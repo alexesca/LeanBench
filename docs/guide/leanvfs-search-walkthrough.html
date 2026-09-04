@@ -1,0 +1,401 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LeanVFS — One search, end to end</title>
+<style>
+  :root{
+    color-scheme: light;
+    --page:#f9f9f7; --surface:#fcfcfb; --raised:#ffffff;
+    --ink:#0b0b0b; --ink-2:#52514e; --muted:#898781; --rule:#e1e0d9;
+    --s1:#2a78d6; --s2:#eb6834; --s3:#1baf7a;
+    --good:#0a7a41; --warn:#8a6100; --bad:#b3261e;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --sans:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Inter,Roboto,sans-serif;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:where(:not([data-theme="light"])){
+      color-scheme: dark;
+      --page:#0d0d0d; --surface:#1a1a19; --raised:#222221;
+      --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781; --rule:#2c2c2a;
+      --s1:#3987e5; --s2:#d95926; --s3:#199e70;
+      --good:#3fa76d; --warn:#d9a441; --bad:#e66767;
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --page:#0d0d0d; --surface:#1a1a19; --raised:#222221;
+    --ink:#ffffff; --ink-2:#c3c2b7; --muted:#898781; --rule:#2c2c2a;
+    --s1:#3987e5; --s2:#d95926; --s3:#199e70;
+    --good:#3fa76d; --warn:#d9a441; --bad:#e66767;
+  }
+
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--page);color:var(--ink);font-family:var(--sans);
+       font-size:16px;line-height:1.65;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:900px;margin:0 auto;padding:0 24px 96px}
+  header{padding:56px 0 8px;border-bottom:1px solid var(--rule);margin-bottom:40px}
+  h1{font-size:2.1rem;line-height:1.15;margin:0 0 10px;letter-spacing:-.02em}
+  .sub{color:var(--ink-2);font-size:1.05rem;max-width:64ch;margin:0}
+  h2{font-size:1.4rem;margin:56px 0 14px;letter-spacing:-.01em;scroll-margin-top:20px}
+  h3{font-size:1.05rem;margin:30px 0 8px;letter-spacing:-.005em}
+  p{margin:0 0 14px;max-width:74ch}
+  a{color:var(--s1)}
+  code{font-family:var(--mono);font-size:.88em;background:var(--rule);
+       padding:1px 5px;border-radius:4px}
+  pre{font-family:var(--mono);font-size:.83rem;line-height:1.55;background:var(--surface);
+      border:1px solid var(--rule);border-radius:10px;padding:16px 18px;overflow-x:auto}
+  pre code{background:none;padding:0;font-size:inherit}
+  .lede{font-size:1.06rem;color:var(--ink-2);border-left:3px solid var(--s1);
+        padding:2px 0 2px 18px;margin:0 0 26px;max-width:70ch}
+  .card{background:var(--surface);border:1px solid var(--rule);border-radius:12px;
+        padding:20px 22px;margin:18px 0}
+  .grid{display:grid;gap:14px}
+  @media(min-width:720px){ .grid.two{grid-template-columns:1fr 1fr} }
+  table{border-collapse:collapse;width:100%;font-size:.9rem;margin:14px 0}
+  th,td{text-align:left;padding:8px 10px;border-bottom:1px solid var(--rule);vertical-align:top}
+  th{font-weight:600;color:var(--ink-2);font-size:.78rem;text-transform:uppercase;letter-spacing:.05em}
+  td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums}
+  .pill{display:inline-block;font-size:.72rem;font-weight:600;padding:2px 8px;
+        border-radius:999px;border:1px solid currentColor;letter-spacing:.02em}
+  .ok{color:var(--good)} .no{color:var(--bad)} .mid{color:var(--warn)}
+  .muted{color:var(--muted)}
+  .flow{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:8px 0 4px}
+  .step{font-family:var(--mono);font-size:.78rem;background:var(--raised);
+        border:1px solid var(--rule);border-radius:7px;padding:6px 10px;white-space:nowrap}
+  .step.key{border-color:var(--s1);color:var(--s1);font-weight:600}
+  .arrow{color:var(--muted);font-size:.85rem}
+  figure{margin:22px 0}
+  figcaption{font-size:.85rem;color:var(--ink-2);margin-top:10px;max-width:70ch}
+  .bar-row{display:grid;grid-template-columns:112px 1fr 86px;align-items:center;
+           gap:10px;margin:7px 0}
+  .bar-label{font-size:.85rem;color:var(--ink-2);text-align:right}
+  .bar-track{position:relative;height:22px}
+  .bar{height:22px;border-radius:0 4px 4px 0;transition:filter .12s}
+  .bar:hover{filter:brightness(1.12)}
+  .bar-val{font-family:var(--mono);font-size:.82rem;font-variant-numeric:tabular-nums;
+           color:var(--ink)}
+  .callout{border:1px solid var(--rule);border-left:3px solid var(--s2);
+           background:var(--surface);border-radius:0 10px 10px 0;padding:14px 18px;margin:18px 0}
+  .callout h4{margin:0 0 6px;font-size:.95rem}
+  .callout p:last-child{margin-bottom:0}
+  .tl{position:relative;margin:22px 0 0;padding-left:26px}
+  .tl::before{content:"";position:absolute;left:7px;top:6px;bottom:6px;width:2px;background:var(--rule)}
+  .tl-item{position:relative;margin-bottom:26px}
+  .tl-item::before{content:"";position:absolute;left:-24px;top:7px;width:10px;height:10px;
+                   border-radius:50%;background:var(--s1);
+                   box-shadow:0 0 0 3px var(--page)}
+  .tl-item.rev::before{background:var(--s2)}
+  .tl-item h3{margin:0 0 4px}
+  .verdict{font-size:.8rem;font-family:var(--mono);color:var(--ink-2);margin-top:6px}
+  nav.toc{background:var(--surface);border:1px solid var(--rule);border-radius:12px;
+          padding:16px 20px;margin:28px 0 8px;font-size:.92rem}
+  nav.toc ol{margin:8px 0 0;padding-left:20px;columns:2;column-gap:28px}
+  nav.toc li{margin:3px 0;break-inside:avoid}
+  .toggle{position:fixed;top:14px;right:14px;background:var(--surface);color:var(--ink-2);
+          border:1px solid var(--rule);border-radius:8px;padding:6px 11px;font-size:.78rem;
+          cursor:pointer;font-family:var(--sans);z-index:9}
+  footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--rule);
+         font-size:.85rem;color:var(--muted)}
+</style>
+<style>
+  .lane{display:grid;grid-template-columns:34px 1fr;gap:14px;margin:0}
+  .lane .rail{position:relative}
+  .lane .rail::before{content:"";position:absolute;left:15px;top:0;bottom:-28px;width:2px;background:var(--rule)}
+  .lane:last-child .rail::before{display:none}
+  .num{width:32px;height:32px;border-radius:50%;background:var(--s1);color:#fff;
+       display:flex;align-items:center;justify-content:center;font-weight:600;font-size:.86rem;
+       position:relative;z-index:1;font-family:var(--mono)}
+  .num.alt{background:var(--s2)}
+  .lane .body{padding-bottom:28px;min-width:0}
+  .lane h3{margin:4px 0 8px}
+  .tag{display:inline-block;font-family:var(--mono);font-size:.7rem;color:var(--ink-2);
+       border:1px solid var(--rule);border-radius:5px;padding:1px 7px;margin-left:8px;
+       vertical-align:middle;background:var(--surface)}
+  .io{display:grid;gap:0;border:1px solid var(--rule);border-radius:10px;overflow:hidden;margin:12px 0}
+  .io > div{padding:10px 14px;font-family:var(--mono);font-size:.8rem;line-height:1.5;overflow-x:auto}
+  .io .k{background:var(--surface);color:var(--ink-2);border-bottom:1px solid var(--rule);
+         font-family:var(--sans);font-size:.72rem;text-transform:uppercase;letter-spacing:.05em}
+  .io .v{background:var(--raised);white-space:pre-wrap;word-break:break-word}
+  .cost{display:inline-block;font-family:var(--mono);font-size:.76rem;color:var(--good);
+        border:1px solid currentColor;border-radius:999px;padding:1px 9px;margin-left:6px}
+  .win{color:var(--good);font-weight:600}
+  .lose{color:var(--bad);font-weight:600}
+</style>
+</head>
+<body>
+<button class="toggle" id="themeBtn">◐ theme</button>
+<div class="wrap">
+<header>
+  <h1>One search, end to end</h1>
+  <p class="sub">Exactly what happens between an agent typing a question and receiving an
+  answer — every call, every algorithm, with the real numbers from a real run.</p>
+</header>
+
+<p class="lede">Everything below was captured from an actual query against
+<code>encode/httpx</code> (125 files, 1,991 symbols). No numbers are illustrative.</p>
+
+<div class="card">
+<strong>The scenario.</strong> An agent is working in a repository and needs to know what
+happens when redirects loop. Without an index it would grep, guess, and read whole files —
+about <strong>26,000 tokens</strong>. Here it asks LeanVFS instead.
+<pre style="margin-top:12px"><code>leanvfs search "what raises TooManyRedirects" --limit 5</code></pre>
+</div>
+
+<h2>The path a query takes</h2>
+
+<div class="lane">
+  <div class="rail"><div class="num">1</div></div>
+  <div class="body">
+    <h3>The agent shells out <span class="tag">cli.py :: main</span></h3>
+    <p>No daemon, no server, no socket. The agent runs a command and reads stdout. This is
+    the whole integration surface — anything with shell access can use it.</p>
+  </div>
+</div>
+
+<div class="lane">
+  <div class="rail"><div class="num">2</div></div>
+  <div class="body">
+    <h3>The index heals itself first <span class="tag">cli.py :: _open_for_query</span></h3>
+    <p>Before answering, LeanVFS brings the index up to date. An agent that edited a file
+    a second ago must not be served the previous state.</p>
+    <p>Each discovered file is hashed and compared to the stored hash. This is the
+    <strong>first row of the invalidation matrix</strong>: identical bytes mean the file is
+    skipped entirely — no parse, no writes, no work.</p>
+    <div class="io">
+      <div class="k">measured, 125 files, nothing changed</div>
+      <div class="v">hash_skips = 125   parse_full = 0   <span class="cost">90 ms total process time</span></div>
+      <div class="k">measured, one file edited</div>
+      <div class="v">reparsed = 1   skipped = 124        <span class="cost">109 ms</span></div>
+    </div>
+    <p class="muted">If the index does not exist yet, it is built here — the agent never has
+    to remember a setup step, and never sees an empty result that means "not indexed"
+    rather than "no matches".</p>
+  </div>
+</div>
+
+<div class="lane">
+  <div class="rail"><div class="num">3</div></div>
+  <div class="body">
+    <h3>The query is decomposed <span class="tag">search.py :: query_terms</span></h3>
+    <p>Words are lowercased, then each is <em>also</em> split on camelCase, PascalCase,
+    snake_case and kebab-case. Both the whole token and its parts are kept.</p>
+    <div class="io">
+      <div class="k">input</div>
+      <div class="v">"what raises TooManyRedirects"</div>
+      <div class="k">terms</div>
+      <div class="v">['what', 'raises', 'toomanyredirects', 'too', 'many', 'redirects']</div>
+    </div>
+    <p>This one step is why an intent-phrased question can reach a symbol whose name it never
+    literally contains: splitting <code>TooManyRedirects</code> into <code>too</code>,
+    <code>many</code>, <code>redirects</code> lets the plain-English phrasing
+    <em>"too many redirects error after several hops"</em> match the same symbol.</p>
+  </div>
+</div>
+
+<div class="lane">
+  <div class="rail"><div class="num">4</div></div>
+  <div class="body">
+    <h3>A candidate set comes out of FTS5 <span class="tag">store.py :: fts_search</span></h3>
+    <p>Terms become an OR-of-prefix expression. Every term is quoted, so punctuation in a
+    user's question can never be parsed as FTS syntax — that is both a correctness and an
+    injection concern.</p>
+    <div class="io">
+      <div class="k">match expression</div>
+      <div class="v">"what"* OR "raises"* OR "toomanyredirects"* OR "too"* OR "many"* OR "redirects"*</div>
+      <div class="k">returned</div>
+      <div class="v">362 candidates, ranked by SQLite's BM25 <span class="cost">a few ms</span></div>
+    </div>
+    <p>BM25 alone is a weak ranking for code — it knows nothing about symbols, paths or file
+    roles. It is used only to <em>narrow</em> the field cheaply; the real ranking is next.</p>
+  </div>
+</div>
+
+<div class="lane">
+  <div class="rail"><div class="num alt">5</div></div>
+  <div class="body">
+    <h3>Re-ranking: the part that decides the answer <span class="tag">search.py :: SearchEngine.search</span></h3>
+    <p>Each candidate starts from its BM25 score and accumulates structural evidence. Every
+    weight is config, not code — this is the surface the benchmark optimises over.</p>
+    <pre><code>score  = bm25            × 1.0
+       + exact_symbol    × 4.0    # the symbol name IS a query term
+       + symbol_parts    × 4.0 × (overlap / parts)
+       + qualified_symbol× 3.0 × 0.5
+       + path            × 1.2 × (overlap / parts)
+       + keyword         × 1.0 × (matching indexed keywords)
+
+score ×= class_source 1.0 | class_tests 0.8 | class_docs 0.7</code></pre>
+    <p>The final multiplier encodes an editorial judgement: when a question matches both an
+    implementation and its test, show the implementation first — but keep the test, because
+    a test is often the clearest statement of intended behaviour.</p>
+  </div>
+</div>
+
+<div class="lane">
+  <div class="rail"><div class="num">6</div></div>
+  <div class="body">
+    <h3>Diversification <span class="tag">search.py :: _diversify</span></h3>
+    <p>At most 3 hits per file; the surplus is <em>demoted, not dropped</em>. This came from a
+    measurement, not a hunch: in the top ten, ripgrep returns 10.0 distinct files while a
+    plain AST index returns 3.9. A list concentrated in one file covers less of a multi-file
+    answer for the same tokens. Worth <strong>+1% nDCG@10</strong> at cap 3.</p>
+  </div>
+</div>
+
+<div class="lane">
+  <div class="rail"><div class="num">7</div></div>
+  <div class="body">
+    <h3>A total order, so results never wobble <span class="tag">Hit.sort_key</span></h3>
+    <pre><code>(-score, path, stable_key, doc_kind, doc_id)</code></pre>
+    <p>Ties break on <code>stable_key</code> — never on SQLite's rowid, which depends on
+    insertion order and would make identical queries return different orderings after a
+    reindex. This is what lets the benchmark assert <strong>exactly zero variance</strong>
+    across ten repetitions.</p>
+  </div>
+</div>
+
+<div class="lane">
+  <div class="rail"><div class="num">8</div></div>
+  <div class="body">
+    <h3>What the agent receives <span class="tag">render/compact.py</span></h3>
+    <div class="io">
+      <div class="k">stdout — the complete response <span style="text-transform:none">(~85 tokens)</span></div>
+      <div class="v">39.95 httpx/_exceptions.py
+     class TooManyRedirects L249-252
+31.37 tests/client/test_redirects.py
+     test test_sync_too_many_redirects L252-257
+30.96 tests/client/test_redirects.py
+     test test_async_too_many_redirects L244-249
+23.92 httpx/_client.py
+     method AsyncClient._send_handling_redirects L1679-1715
+23.73 httpx/_client.py
+     method Client._send_handling_redirects L964-999</div>
+    </div>
+    <p><span class="cost">7.5 ms</span> The definition, both tests that pin its behaviour, and
+    both implementations that raise it. Line-oriented and low-punctuation on purpose: the same
+    content as JSON costs roughly twice the tokens, nearly all of it braces and repeated field
+    names.</p>
+  </div>
+</div>
+
+<h2>Step 9 — going deeper without opening the file</h2>
+
+<p>The agent now wants the contract of one symbol. <code>get_context</code> is the operation
+most responsible for the headline metric, so it is assembled by policy rather than from a
+fixed field list.</p>
+
+<pre><code>leanvfs context "Client._send_handling_redirects"</code></pre>
+
+<h3>The admission algorithm <span class="tag">budget.py :: admit</span></h3>
+<pre><code>1. sort by (priority asc, confidence desc, kind asc, value asc)   # a total order
+2. greedily admit while cumulative_tokens + cost(fact) &lt;= budget
+3. within a kind, respect per-kind caps BEFORE the global budget
+4. record every dropped fact as (kind, priority, count, tokens_would_have_cost)
+5. emit a budget_report alongside the payload</code></pre>
+
+<p>Identity, location and signature are unconditional — never subject to the budget.
+Everything else competes in a configured order: exceptions → side effects → invariants →
+test expectations → resolved calls → doc refs → keywords. <strong>Never the implementation
+body.</strong></p>
+
+<div class="io">
+  <div class="k">budget_report (real, from the run above)</div>
+  <div class="v">budget 351   admitted 25 of 25   tokens_approx 82   truncated false
+spend_by_kind: call 33 · parameter 17 · keyword 16 · type_use 8 · exception 6 · side_effect 2
+dropped: {}</div>
+  <div class="k">the response — 530 bytes, ~132 tokens</div>
+  <div class="v">@symbol Client._send_handling_redirects
+at=httpx/_client.py L964-999
+sig=_send_handling_redirects(request:Request,follow_redirects:bool,history:list[Response])->Response
+ret=Response
+vis=protected
+call=TooManyRedirects,hook,len,list,response.close,response.read,self._build_redirect_request,self._send_single_request
+exception=TooManyRedirects,exc
+keyword=exc,handling,history,hook,many,redirects,send,too
+parameter=follow_redirects:bool,history:list[Response],request:Request
+side_effect=fs:r
+type_use=Request,bool,list[Response]</div>
+</div>
+
+<p>The agent now knows the signature, the return type, what it raises, what it calls, and that
+it touches the filesystem — <strong>without reading a single line of the 36-line body</strong>,
+let alone the 1,700-line file it lives in.</p>
+
+<div class="callout">
+<h4>Why the drop record is not optional</h4>
+<p>When the budget bites, <code>dropped</code> reports exactly what was withheld and what it
+would have cost. An agent that cannot tell it received a partial answer does not know to ask
+for more, and a benchmark cannot tell a good policy from a lucky one. Silent truncation is a
+correctness bug, not a saving.</p>
+</div>
+
+<h2>Step 10 — the agent reads, finally</h2>
+
+<p>Only now does it open source, and only the ranges it was handed:</p>
+<pre><code>Read("httpx/_client.py", offset=964, limit=36)</code></pre>
+
+<table>
+<thead><tr><th>Approach</th><th class="num">Tokens</th><th>What was read</th></tr></thead>
+<tbody>
+<tr><td>grep, then read the hits</td><td class="num">26,444</td><td>3 whole files, 3,187 lines</td></tr>
+<tr><td>LeanVFS search</td><td class="num">~85</td><td>5 ranked locations</td></tr>
+<tr><td>+ context on one symbol</td><td class="num">~132</td><td>the full contract, no body</td></tr>
+<tr><td>+ one targeted range read</td><td class="num">~400</td><td>36 lines that matter</td></tr>
+<tr><td><strong>total</strong></td><td class="num"><strong>~617</strong></td><td><strong>43× less</strong></td></tr>
+</tbody>
+</table>
+
+<h2>When it goes wrong</h2>
+
+<p>A walkthrough that only shows the good case is a sales demo. Here is the same pipeline on a
+question phrased entirely in plain English, with none of the codebase's vocabulary:</p>
+
+<div class="io">
+  <div class="k">query</div>
+  <div class="v">"what happens when a request keeps redirecting forever"</div>
+  <div class="k">terms</div>
+  <div class="v">['what', 'happens', 'when', 'a', 'request', 'keeps', 'redirecting', 'forever']</div>
+  <div class="k">top results <span style="text-transform:none">— <span class="lose">wrong</span></span></div>
+  <div class="v">11.80 httpx/_exceptions.py   RequestError
+ 9.26 httpx/_exceptions.py   HTTPError.request
+ 9.22 httpx/_models.py       Response.request
+ 9.19 httpx/_exceptions.py   HTTPError.request</div>
+</div>
+
+<p><code>TooManyRedirects</code> does not appear at all. The common word
+<strong>"request"</strong> dominates the score, and <code>redirecting</code> never stems to
+<code>redirects</code> — there is no stemmer in the pipeline. The <span class="lose">failure
+is total</span>, not partial.</p>
+
+<p>This is measured, not anecdotal: across the benchmark suite, <strong>18 of 50</strong>
+intent-phrased probes score exactly zero. The obvious fix — a query-side stoplist plus IDF
+weighting — was implemented and <strong>measured worse</strong> (nDCG@10 0.335 → 0.317), so it
+was reverted and kept as default-off config. The honest state is that this is the system's
+largest known weakness and the fix is not yet known.</p>
+
+<div class="callout">
+<h4>What this means for an agent</h4>
+<p>Phrase queries with the vocabulary you expect the code to use. <em>"TooManyRedirects"</em>,
+<em>"redirect limit"</em> and <em>"max_redirects"</em> all work; <em>"keeps redirecting
+forever"</em> does not. The system is a strong lexical-structural matcher, not a semantic one —
+there are no embeddings anywhere in it, by design.</p>
+</div>
+
+<footer>
+  Every figure captured from a live run against <code>encode/httpx</code> at commit
+  <code>b5addb64</code>. Architecture: <a href="leanvfs-architecture.html">the architecture
+  guide</a>. Full measurements including the unflattering ones: <code>RESULTS.md</code>.
+</footer>
+</div>
+
+<script>
+document.getElementById('themeBtn').addEventListener('click', function(){
+  var cur = document.documentElement.getAttribute('data-theme');
+  var next = cur === 'dark' ? 'light' : (cur === 'light' ? 'dark'
+            : (matchMedia('(prefers-color-scheme: dark)').matches ? 'light' : 'dark'));
+  document.documentElement.setAttribute('data-theme', next);
+});
+</script>
+</body>
+</html>
