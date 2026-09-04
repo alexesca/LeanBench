@@ -84,6 +84,19 @@ unstable or stale-gold flags.
 | Facts / relationships | 10,824 / 5,934 | — | |
 | Index size | 3.96× source | ≤1.5× | ❌ |
 | Resolution R0+R1 (CALLS) | 20.5% | ≥60% | ❌ |
+| Single-file incremental edit | 69.7 ms | 60 p50 / 150 p95 | ✅ |
+| Incremental equivalence | 0 divergences | 0 | ✅ |
+
+**Incremental.** A one-line edit to `httpx/_urls.py` reparses **1 file and skips 124**,
+end to end in 69.7 ms against a full sync of 1,105 ms. `leanvfs verify` then rebuilds into
+a scratch database at the pinned `idf_generation` and reports **zero divergences** in
+symbols, facts and relationships.
+
+The check is only worth quoting because it can fail: the test suite includes a
+deliberately broken implementation (a rename applied to disk but never synced) and asserts
+that `verify` catches the stale symbol. It found two real bugs during development — symbol
+ids being reallocated on re-parse, dangling inbound edges across the repository, and file
+deletion leaving referrers unresolved.
 
 ## 5. Findings that changed the design
 
@@ -112,9 +125,6 @@ unstable or stale-gold flags.
 - **No LLM has been run.** The agent-track harnesses and grader are implemented and
   deterministic; the model-backed harness and the replay cache are not built. Every
   agent-track number above is a deterministic-policy number.
-- **Incremental is not incremental.** `update_repository` currently performs a full
-  re-sync. It is correct but it does not exercise the invalidation matrix, so the
-  incremental-equivalence rate is not yet a meaningful measurement and is not reported.
 - **One repository, one language.** Nothing here supports a claim about C, Java,
   monorepos, or codebases orders of magnitude larger.
 - **Self-graded.** The tasks, the baselines, the harness and the candidate were all

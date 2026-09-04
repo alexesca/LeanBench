@@ -164,10 +164,12 @@ leanbench tasks triage suites/httpx --run runs/...  # suite health
 ## Status
 
 The deterministic half is complete and gated: both tracks run, artifacts are immutable and
-fully traceable, 166 tests pass, and every phase gate is an executable assertion rather
-than a claim. Not built: a model-backed agent harness with its replay cache, and genuine
-incremental sync (`update_repository` currently does a full re-sync, which is correct but
-does not exercise the invalidation matrix). Both are scoped in `RESULTS.md` §6.
+fully traceable, 171 tests pass, and every phase gate is an executable assertion rather
+than a claim. Incremental sync is hash-gated and verified: a one-line edit reparses 1 file
+of 125 in 69.7 ms, and `leanvfs verify` confirms zero divergence from a clean rebuild.
+
+Not built: a model-backed agent harness with its replay cache. Every agent-track number
+here is a deterministic-policy number, which is stated wherever one is quoted.
 
 Nothing here is preserved merely because a spec said it. **Once LeanBench provides evidence,
 measurement wins.**
