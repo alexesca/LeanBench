@@ -120,10 +120,54 @@ left for a reader to discover.
 
 ---
 
+## What it measured
+
+Full numbers, including the unflattering ones, are in [`RESULTS.md`](RESULTS.md).
+The short version, on 50 authored tasks over `httpx` at a pinned commit:
+
+| Candidate | Correctness | Tokens / correct solution |
+|---|---:|---:|
+| Raw file reading | 0.009 | 5,052 |
+| ripgrep | 0.092 | 1,488 |
+| CTags | 0.000 | — |
+| Minimal AST | 0.005 | 564 |
+| **LeanVFS** | **0.369** | **435** |
+
+LeanVFS reaches 4× the correctness of the next best candidate on a third of the tokens,
+and 11.6× fewer tokens than raw file reading.
+
+Validity, checked rather than asserted: retrieval-track variance is **exactly zero** over
+10 repetitions; the discrimination gate passes at `|δ(Raw, MinAST)| = 1.000` on the
+signature metric; 100% of tasks are informative against a 60% gate.
+
+Three things the same measurements say that are *not* flattering, reported because a
+benchmark that only publishes its wins is an advertisement:
+
+- On retrieval **quality** (nDCG@10) rather than tokens, a minimal AST index is
+  statistically indistinguishable from raw file reading — `|δ| = 0.064`. The suite may
+  under-reward structure.
+- LeanVFS is among the **most brittle** candidates under paraphrase; ripgrep has the
+  better worst case.
+- Two LeanVFS targets are missed: call-resolution confidence (20.5% vs 60%) and index
+  size (3.96× vs 1.5×).
+
+## Running it
+
+```bash
+leanbench doctor                                    # environment check
+leanbench evaluate --candidate leanvfs/leanvfs-candidate.toml --suite suites/httpx
+leanbench noise --candidate ... --suite ... --repetitions 10   # noise floor first
+leanbench separation runs/*/                        # discriminative power
+leanbench tasks triage suites/httpx --run runs/...  # suite health
+```
+
 ## Status
 
-Under active construction. See `docs/adr/` for decisions already taken and
-`DECISIONS-NEEDED.md` for the judgment calls, their defaults, and what would change them.
+The deterministic half is complete and gated: both tracks run, artifacts are immutable and
+fully traceable, 166 tests pass, and every phase gate is an executable assertion rather
+than a claim. Not built: a model-backed agent harness with its replay cache, and genuine
+incremental sync (`update_repository` currently does a full re-sync, which is correct but
+does not exercise the invalidation matrix). Both are scoped in `RESULTS.md` §6.
 
 Nothing here is preserved merely because a spec said it. **Once LeanBench provides evidence,
 measurement wins.**
