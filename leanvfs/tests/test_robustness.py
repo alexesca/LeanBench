@@ -136,3 +136,84 @@ def test_empty_repository_is_not_an_error(tmp_path: Path) -> None:
     result = Indexer(repo, store, cfg).full_sync()
     assert result.files == 0
     assert QueryEngine(store, cfg).search("anything", 5)["hits"] == []
+
+
+# --- rung two of the fallback ladder: languages with no rich adapter -----------------
+
+MULTI_LANG = {
+    "svc.go": (
+        "package main\n\n"
+        "type Router struct {\n\troutes []string\n}\n\n"
+        "func NewRouter() *Router {\n\treturn &Router{}\n}\n\n"
+        "func (r *Router) Match(path string) bool {\n\treturn false\n}\n",
+        {("Router", "struct"), ("NewRouter", "function"), ("Match", "method")},
+    ),
+    "client.ts": (
+        "export class HttpClient {\n"
+        "  async send(request: Request): Promise<Response> {\n"
+        "    return fetch(request);\n  }\n}\n\n"
+        "export interface RetryOptions {\n  limit: number;\n}\n\n"
+        "export function calculateDelay(attempt: number): number {\n  return attempt * 100;\n}\n",
+        {("HttpClient", "class"), ("RetryOptions", "interface"), ("calculateDelay", "function")},
+    ),
+    "lib.rs": (
+        "pub struct Config {\n    pub retries: u32,\n}\n\n"
+        "pub trait Transport {\n    fn send(&self);\n}\n\n"
+        "pub fn build_client() -> Config {\n    Config { retries: 3 }\n}\n",
+        {("Config", "struct"), ("Transport", "trait"), ("build_client", "function")},
+    ),
+    "Service.java": (
+        "public class OrderService {\n"
+        "    public void submit(Order order) {\n    }\n"
+        "}\n",
+        {("OrderService", "class"), ("submit", "method")},
+    ),
+}
+
+
+@pytest.fixture()
+def polyglot(tmp_path: Path) -> Path:
+    repo = tmp_path / "poly"
+    repo.mkdir()
+    for name, (body, _expected) in MULTI_LANG.items():
+        (repo / name).write_text(body, encoding="utf-8")
+    return repo
+
+
+def test_languages_without_a_rich_adapter_still_yield_symbols(polyglot, tmp_path) -> None:
+    """Regression: the declaration patterns are injected as FLATTENED dotted config keys.
+    Reading them as a nested table returned nothing for every language -- no error, just
+    an index with no symbols in it, which looks identical to 'this repo has no code'."""
+    _cfg, store, _ix, _r = _index(polyglot, tmp_path)
+    found = {
+        (r["name"], r["kind"])
+        for r in store.conn.execute("SELECT name, kind FROM symbols WHERE kind != 'module'")
+    }
+    missing: list[str] = []
+    for _name, (_body, expected) in MULTI_LANG.items():
+        for want in expected:
+            if want not in found:
+                missing.append(f"{want[1]} {want[0]}")
+    assert not missing, f"declaration extraction missed: {missing}"
+
+
+def test_polyglot_symbols_are_searchable(polyglot, tmp_path) -> None:
+    cfg, store, _ix, _r = _index(polyglot, tmp_path)
+    engine = QueryEngine(store, cfg)
+    for query, expected_path in [
+        ("calculateDelay", "client.ts"),
+        ("Router", "svc.go"),
+        ("build_client", "lib.rs"),
+    ]:
+        hits = engine.search(query, 10)["hits"]
+        assert any(h["path"] == expected_path for h in hits), (
+            f"{query!r} did not find {expected_path}"
+        )
+
+
+def test_no_duplicate_symbol_per_declaration(polyglot, tmp_path) -> None:
+    """A duplicate hit spends the agent's tokens twice for one answer. Two extraction
+    paths were both firing on `name() {`."""
+    _cfg, store, _ix, _r = _index(polyglot, tmp_path)
+    rows = list(store.conn.execute("SELECT name, kind, file_id FROM symbols"))
+    assert len(rows) == len({(r["name"], r["kind"], r["file_id"]) for r in rows})

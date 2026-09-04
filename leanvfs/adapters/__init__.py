@@ -53,6 +53,10 @@ def select_adapter(language: str, file_class: str) -> LanguageAdapter:
         return ADAPTERS["config"]
     if language in ("markdown",):
         return ADAPTERS["markdown"]
-    if language in ("text", "shell"):
-        return ADAPTERS["text"]
-    return _METADATA_ONLY
+    if language == "binary":
+        return _METADATA_ONLY
+    # Rung three catches everything else, including languages with no rich adapter.
+    # The generic adapter reads declaration patterns from config, so a Go or TypeScript
+    # file yields real symbols rather than a single metadata stub; a language with no
+    # patterns still yields file metadata and keywords, which beats nothing.
+    return ADAPTERS["text"]

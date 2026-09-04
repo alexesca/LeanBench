@@ -80,8 +80,99 @@ generated_scan_bytes = 2048
 
 [languages]
 # extension -> language id
-map = { ".py" = "python", ".pyi" = "python", ".md" = "markdown", ".rst" = "markdown", ".toml" = "toml", ".yaml" = "yaml", ".yml" = "yaml", ".json" = "json", ".ini" = "ini", ".cfg" = "ini", ".txt" = "text", ".sh" = "shell" }
+map = { ".py" = "python", ".pyi" = "python", ".md" = "markdown", ".rst" = "markdown", ".toml" = "toml", ".yaml" = "yaml", ".yml" = "yaml", ".json" = "json", ".ini" = "ini", ".cfg" = "ini", ".txt" = "text", ".sh" = "shell", ".bash" = "shell", ".zsh" = "shell", ".ts" = "typescript", ".tsx" = "typescript", ".mts" = "typescript", ".cts" = "typescript", ".js" = "javascript", ".jsx" = "javascript", ".mjs" = "javascript", ".cjs" = "javascript", ".go" = "go", ".rs" = "rust", ".java" = "java", ".kt" = "kotlin", ".cs" = "csharp", ".rb" = "ruby", ".php" = "php", ".swift" = "swift", ".c" = "c", ".h" = "c", ".cc" = "cpp", ".cpp" = "cpp", ".hpp" = "cpp", ".scala" = "scala", ".sql" = "sql" }
 rich_adapters = ["python"]
+
+# Rung two of the fallback ladder: declaration patterns for languages with no rich
+# adapter. This is deliberately shallow -- it finds WHAT is declared and WHERE, not what
+# it calls or raises. A repository is far more searchable with names and locations than
+# with nothing, and adding a rich adapter per language before Python has proven itself
+# would be unmeasured work.
+#
+# Each entry is [regex, symbol_kind]. The first capture group is the name. Patterns are
+# matched per line, so they must be anchored and cheap. Ties break on file order.
+[languages.declarations]
+typescript = [
+  ["^\\s*(?:export\\s+)?(?:declare\\s+)?(?:abstract\\s+)?class\\s+([A-Za-z_$][\\w$]*)", "class"],
+  ["^\\s*(?:export\\s+)?interface\\s+([A-Za-z_$][\\w$]*)", "interface"],
+  ["^\\s*(?:export\\s+)?type\\s+([A-Za-z_$][\\w$]*)\\s*=", "type_alias"],
+  ["^\\s*(?:export\\s+)?(?:const\\s+)?enum\\s+([A-Za-z_$][\\w$]*)", "enum"],
+  ["^\\s*(?:export\\s+)?(?:default\\s+)?(?:async\\s+)?function\\s*\\*?\\s*([A-Za-z_$][\\w$]*)", "function"],
+  ["^\\s*(?:export\\s+)?(?:const|let|var)\\s+([A-Za-z_$][\\w$]*)\\s*[:=]\\s*(?:async\\s*)?(?:\\([^)]*\\)|[A-Za-z_$][\\w$]*)\\s*(?::[^=]+)?=>", "function"],
+  ["^\\s{2,}(?:public|private|protected|readonly|static|async|\\*)?\\s*([A-Za-z_$][\\w$]*)\\s*\\([^;]*\\)\\s*[:{]", "method"],
+]
+javascript = "typescript"
+go = [
+  ["^func\\s+\\([^)]*\\)\\s*([A-Za-z_]\\w*)", "method"],
+  ["^func\\s+([A-Za-z_]\\w*)", "function"],
+  ["^type\\s+([A-Za-z_]\\w*)\\s+struct", "struct"],
+  ["^type\\s+([A-Za-z_]\\w*)\\s+interface", "interface"],
+  ["^type\\s+([A-Za-z_]\\w*)", "type_alias"],
+]
+rust = [
+  ["^\\s*(?:pub(?:\\([^)]*\\))?\\s+)?(?:async\\s+)?(?:unsafe\\s+)?fn\\s+([A-Za-z_]\\w*)", "function"],
+  ["^\\s*(?:pub(?:\\([^)]*\\))?\\s+)?struct\\s+([A-Za-z_]\\w*)", "struct"],
+  ["^\\s*(?:pub(?:\\([^)]*\\))?\\s+)?enum\\s+([A-Za-z_]\\w*)", "enum"],
+  ["^\\s*(?:pub(?:\\([^)]*\\))?\\s+)?trait\\s+([A-Za-z_]\\w*)", "trait"],
+  ["^\\s*impl(?:<[^>]*>)?\\s+(?:[A-Za-z_]\\w*\\s+for\\s+)?([A-Za-z_]\\w*)", "class"],
+]
+java = [
+  ["^\\s*(?:public|protected|private)?\\s*(?:abstract\\s+|final\\s+|static\\s+)*class\\s+([A-Za-z_]\\w*)", "class"],
+  ["^\\s*(?:public|protected|private)?\\s*interface\\s+([A-Za-z_]\\w*)", "interface"],
+  ["^\\s*(?:public|protected|private)?\\s*enum\\s+([A-Za-z_]\\w*)", "enum"],
+  ["^\\s+(?:public|protected|private)\\s+(?:static\\s+|final\\s+|synchronized\\s+)*[\\w<>\\[\\],\\s]+\\s+([A-Za-z_]\\w*)\\s*\\(", "method"],
+]
+kotlin = [
+  ["^\\s*(?:public|internal|private)?\\s*(?:data\\s+|sealed\\s+|open\\s+|abstract\\s+)*class\\s+([A-Za-z_]\\w*)", "class"],
+  ["^\\s*(?:public|internal|private)?\\s*interface\\s+([A-Za-z_]\\w*)", "interface"],
+  ["^\\s*(?:public|internal|private)?\\s*(?:suspend\\s+)?fun\\s+(?:<[^>]*>\\s*)?([A-Za-z_]\\w*)", "function"],
+  ["^\\s*object\\s+([A-Za-z_]\\w*)", "class"],
+]
+csharp = [
+  ["^\\s*(?:public|internal|protected|private)?\\s*(?:sealed\\s+|abstract\\s+|static\\s+|partial\\s+)*class\\s+([A-Za-z_]\\w*)", "class"],
+  ["^\\s*(?:public|internal|protected|private)?\\s*interface\\s+([A-Za-z_]\\w*)", "interface"],
+  ["^\\s*(?:public|internal|protected|private)?\\s*(?:readonly\\s+)?struct\\s+([A-Za-z_]\\w*)", "struct"],
+  ["^\\s*(?:public|internal|protected|private)?\\s*enum\\s+([A-Za-z_]\\w*)", "enum"],
+  ["^\\s+(?:public|internal|protected|private)\\s+(?:static\\s+|async\\s+|virtual\\s+|override\\s+)*[\\w<>\\[\\],\\s\\?]+\\s+([A-Za-z_]\\w*)\\s*\\(", "method"],
+]
+ruby = [
+  ["^\\s*class\\s+([A-Za-z_][\\w:]*)", "class"],
+  ["^\\s*module\\s+([A-Za-z_][\\w:]*)", "module"],
+  ["^\\s*def\\s+(?:self\\.)?([A-Za-z_]\\w*[?!=]?)", "method"],
+]
+php = [
+  ["^\\s*(?:abstract\\s+|final\\s+)?class\\s+([A-Za-z_]\\w*)", "class"],
+  ["^\\s*interface\\s+([A-Za-z_]\\w*)", "interface"],
+  ["^\\s*trait\\s+([A-Za-z_]\\w*)", "trait"],
+  ["^\\s*(?:(?:public|protected|private|static|abstract|final)\\s+)*function\\s+&?\\s*([A-Za-z_]\\w*)", "function"],
+]
+swift = [
+  ["^\\s*(?:public|internal|private|fileprivate|open)?\\s*(?:final\\s+)?class\\s+([A-Za-z_]\\w*)", "class"],
+  ["^\\s*(?:public|internal|private|fileprivate|open)?\\s*struct\\s+([A-Za-z_]\\w*)", "struct"],
+  ["^\\s*(?:public|internal|private|fileprivate|open)?\\s*protocol\\s+([A-Za-z_]\\w*)", "interface"],
+  ["^\\s*(?:public|internal|private|fileprivate|open)?\\s*enum\\s+([A-Za-z_]\\w*)", "enum"],
+  ["^\\s*(?:public|internal|private|fileprivate|open)?\\s*(?:static\\s+|class\\s+)?func\\s+([A-Za-z_]\\w*)", "function"],
+]
+c = [
+  ["^\\s*(?:static\\s+|inline\\s+|extern\\s+)*[A-Za-z_][\\w\\s\\*]*\\s+\\*?([A-Za-z_]\\w*)\\s*\\([^;]*\\)\\s*\\{", "function"],
+  ["^\\s*typedef\\s+struct[^;]*?\\s([A-Za-z_]\\w*)\\s*;", "struct"],
+  ["^\\s*struct\\s+([A-Za-z_]\\w*)\\s*\\{", "struct"],
+]
+cpp = "c"
+scala = [
+  ["^\\s*(?:final\\s+|sealed\\s+|abstract\\s+|case\\s+)*class\\s+([A-Za-z_]\\w*)", "class"],
+  ["^\\s*(?:case\\s+)?object\\s+([A-Za-z_]\\w*)", "class"],
+  ["^\\s*trait\\s+([A-Za-z_]\\w*)", "trait"],
+  ["^\\s*(?:private\\s+|protected\\s+)?def\\s+([A-Za-z_]\\w*)", "function"],
+]
+sql = [
+  ["^\\s*CREATE\\s+(?:OR\\s+REPLACE\\s+)?TABLE\\s+(?:IF\\s+NOT\\s+EXISTS\\s+)?[\"`\\[]?([A-Za-z_]\\w*)", "table"],
+  ["^\\s*CREATE\\s+(?:OR\\s+REPLACE\\s+)?VIEW\\s+[\"`\\[]?([A-Za-z_]\\w*)", "view"],
+  ["^\\s*CREATE\\s+(?:OR\\s+REPLACE\\s+)?(?:FUNCTION|PROCEDURE)\\s+[\"`\\[]?([A-Za-z_]\\w*)", "procedure"],
+]
+shell = [
+  ["^\\s*(?:function\\s+)?([A-Za-z_]\\w*)\\s*\\(\\)\\s*\\{", "function"],
+]
 
 [hashing]
 algorithm = "blake2b"
