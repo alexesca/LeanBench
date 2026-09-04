@@ -44,6 +44,13 @@ brittleness_gap = 0.30
 primary_metric = "ndcg_at_10"
 
 [agent]
+# Which deterministic policy drives the agent track. These are the MockHarness of the
+# design: no LLM, no network, fully reproducible, and therefore what CI runs. They are
+# not a model -- they are two contrasting *strategies* for spending a token budget, which
+# is exactly the thing the signature metric is meant to discriminate between.
+#   read-all         - open files and read them, the way an agent with no index must
+#   candidate-guided - ask the candidate first, then read only what it points at
+policy = "candidate-guided"
 max_tool_calls = 20
 max_repository_tokens = 30000
 wall_clock_s = 180.0

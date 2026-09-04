@@ -22,7 +22,10 @@ from leanbench.artifacts import (
 from leanbench.candidate.manifest import load_manifest
 from leanbench.candidate.runner import SubprocessCandidate
 from leanbench.corpus import load_corpus
+from leanbench.gateway import ToolGateway
+from leanbench.grading.agent import AgentGrader
 from leanbench.grading.retrieval import RetrievalGrader
+from leanbench.harness.agent import AgentHarness
 from leanbench.harness.retrieval import RetrievalHarness
 from leanbench.instrumentation import Recorder
 from leanbench.kernel.bus import EventBus
@@ -30,6 +33,7 @@ from leanbench.kernel.capabilities import assert_capabilities, required_for_prob
 from leanbench.kernel.context import RunContext
 from leanbench.kernel.errors import BenchmarkInfrastructureError, LeanBenchError
 from leanbench.kernel.ids import new_run_id, run_id_from_seed
+from leanbench.repository import LocalRepository
 from leanbench.schemas.config import ResolvedConfig
 from leanbench.schemas.metrics import RunMetrics
 from leanbench.schemas.run import CandidateArtifact, RunManifest, RunSummary
@@ -62,15 +66,16 @@ def evaluate(
     run_id_seed: str | None = None,
     runs_dir: Path | None = None,
     corpus_manifest: Path | None = None,
+    agent_policy: str | None = None,
 ) -> EvaluationResult:
     """Run `suite_path` against the candidate described by `manifest_path`.
 
     The run directory is created fresh and sealed at the end: a completed run is never
     mutated (ADR-008), so a re-run always means a new id.
     """
-    if track != "retrieval":
+    if track not in ("retrieval", "agent", "both"):
         raise BenchmarkInfrastructureError(
-            f"track {track!r} is not available; only the retrieval track is implemented"
+            f"track {track!r} is not one of: retrieval, agent, both"
         )
 
     suite: Suite = load_suite(suite_path)
@@ -132,6 +137,7 @@ def evaluate(
     task_results: list[dict[str, Any]] = []
     probe_metrics: list[Any] = []
     task_metrics: list[Any] = []
+    agent_metrics: list[Any] = []
     prepare_ms = 0.0
     stats: dict[str, Any] = {}
 
@@ -141,14 +147,37 @@ def evaluate(
         candidate.prepare(str(repo_path), suite.spec.commit)
         prepare_ms = (time.perf_counter() - t0) * 1000.0
 
-        harness = RetrievalHarness(context, candidate, recorder)
-        grader = RetrievalGrader(config)
+        run_retrieval = track in ("retrieval", "both")
+        run_agent = track in ("agent", "both")
+
+        retrieval_harness = RetrievalHarness(context, candidate, recorder)
+        retrieval_grader = RetrievalGrader(config)
+
+        agent_harness = None
+        agent_grader = None
+        if run_agent:
+            # The agent reaches the repository ONLY through the gateway; there is no
+            # bypass path, which is what makes the token accounting trustworthy.
+            gateway = ToolGateway(
+                repository=LocalRepository(repo_path, config),
+                candidate=candidate,
+                recorder=recorder,
+                config=config,
+                run_id=run_id,
+            )
+            policy = agent_policy or config.get_str("agent.policy")
+            agent_harness = AgentHarness(context, gateway, policy)
+            agent_grader = AgentGrader(config)
 
         for task in suite.tasks:
-            observations = harness.run_task(task)
-            graded = grader.grade(task, observations)
-            probe_metrics.extend(graded["probe_metrics"])
-            task_metrics.append(graded["task_metrics"])
+            if run_retrieval:
+                observations = retrieval_harness.run_task(task)
+                graded = retrieval_grader.grade(task, observations)
+                probe_metrics.extend(graded["probe_metrics"])
+                task_metrics.append(graded["task_metrics"])
+            if agent_harness is not None and agent_grader is not None:
+                agent_obs = agent_harness.run_task(task)
+                agent_metrics.append(agent_grader.grade(task, agent_obs)["task_metrics"])
             task_results.append(
                 {
                     "task_id": task.id,
@@ -183,6 +212,35 @@ def evaluate(
     for key, value in worst_aggregate.items():
         aggregate[f"worst_{key}"] = value
 
+    agent_aggregate: dict[str, float] = {}
+    if agent_metrics:
+        agent_aggregate = {
+            "correctness": round(
+                sum(m.correctness for m in agent_metrics) / len(agent_metrics), precision
+            ),
+            "repository_context_tokens_mean": round(
+                sum(m.repository_context_tokens for m in agent_metrics) / len(agent_metrics),
+                precision,
+            ),
+            # The signature metric: tokens spent on tasks actually answered correctly,
+            # reported beside the correctness rate that makes it interpretable.
+            "repository_tokens_to_correct_solution": round(
+                (
+                    sum(m.repository_context_tokens for m in agent_metrics if m.correctness > 0)
+                    / max(sum(1 for m in agent_metrics if m.correctness > 0), 1)
+                ),
+                precision,
+            ),
+            "tasks_correct": float(sum(1 for m in agent_metrics if m.correctness > 0)),
+            "tool_calls_mean": round(
+                sum(m.tool_calls for m in agent_metrics) / len(agent_metrics), precision
+            ),
+            "effective_context_efficiency": round(
+                sum(m.effective_context_efficiency for m in agent_metrics) / len(agent_metrics),
+                precision,
+            ),
+        }
+
     metrics = RunMetrics(
         run_id=run_id,
         suite=suite.name,
@@ -192,11 +250,13 @@ def evaluate(
         tokenizer_approximate=recorder.approximate,
         retrieval_tasks=sorted(task_metrics, key=lambda m: m.task_id),
         retrieval_aggregate=aggregate,
+        agent_tasks=sorted(agent_metrics, key=lambda m: m.task_id),
+        agent_aggregate=agent_aggregate,
         probe_metrics=sorted(probe_metrics, key=lambda m: (m.task_id, m.paraphrase_id, m.op)),
     )
 
     usage = recorder.token_usage()
-    scored = len(task_metrics)
+    scored = len(task_metrics) or len(agent_metrics)
     failed_tasks = sum(1 for m in task_metrics if m.failed_probes)
     infra_rate = context.infrastructure_failure_rate(max(len(suite.tasks), 1))
     degraded = infra_rate > config.get_float("run.degraded_infrastructure_failure_rate")
@@ -210,6 +270,16 @@ def evaluate(
         "brittle_tasks": sorted(m.task_id for m in task_metrics if m.brittle),
         "prepare_ms": round(prepare_ms, 2),
     }
+    if agent_aggregate:
+        headline.update(
+            {
+                "correctness": agent_aggregate["correctness"],
+                "repository_tokens_to_correct_solution": agent_aggregate[
+                    "repository_tokens_to_correct_solution"
+                ],
+                "tasks_correct": agent_aggregate["tasks_correct"],
+            }
+        )
 
     summary = RunSummary(
         run_id=run_id,
@@ -311,6 +381,8 @@ def evaluate(
                 ],
             )
             store.record_metrics(run_id, "retrieval", aggregate)
+            if agent_aggregate:
+                store.record_metrics(run_id, "agent", agent_aggregate)
 
     writer.seal()
     return EvaluationResult(

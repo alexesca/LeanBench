@@ -17,6 +17,9 @@ from leanbench.kernel.errors import LeanBenchError
 from leanbench.kernel.registry import register
 from leanbench.schemas.task import Task
 
+_SCORE = re.compile(r"^-?\d+(?:\.\d+)?$")
+_IDENT = re.compile(r"^[A-Za-z_][\w.]*$")
+
 DEF_RE = re.compile(r"^\s*(?:async\s+)?(?:def|class)\s+([A-Za-z_][A-Za-z0-9_]*)", re.MULTILINE)
 CONTEXT_LINES = 40
 
@@ -77,25 +80,54 @@ def read_all_policy(task: Task, ctx: PolicyContext) -> str:
     return " ".join(_unique(mentions))
 
 
+def _identifiers_from(result: dict[str, Any]) -> list[str]:
+    """Pull path/symbol identifiers out of a tool result, in whichever shape it came.
+
+    Candidates answer in `compact` by default because that is the token-efficient path
+    and the one the headline metric measures. A deterministic policy therefore has to
+    read the compact rendering, exactly as a language model would -- asking for JSON
+    instead would quietly hand every candidate a different (and larger) token bill and
+    make the signature metric measure the wrong thing.
+    """
+    found: list[str] = []
+    for hit in result.get("hits", []) or []:
+        if hit.get("symbol"):
+            found.append(str(hit["symbol"]))
+        if hit.get("path"):
+            found.append(str(hit["path"]))
+    text = result.get("text")
+    if isinstance(text, str):
+        for line in text.splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            parts = stripped.split()
+            # "<score> <path>" — a file-level line.
+            if len(parts) >= 2 and _SCORE.match(parts[0]):
+                found.append(parts[1])
+                continue
+            # "<kind> <Symbol> L12-40" — the indented locator line beneath it.
+            if len(parts) >= 2 and not line.startswith(("@", "at=")):
+                candidate = parts[1]
+                if _IDENT.match(candidate):
+                    found.append(candidate)
+    return found
+
+
 def candidate_guided_policy(task: Task, ctx: PolicyContext) -> str:
     """Ask the candidate where to look, then read only those line ranges."""
     mentions: list[str] = []
     try:
         response = ctx.call("candidate.search", query=task.prompt.strip(), limit=10)
         if response["ok"]:
-            for hit in response["result"].get("hits", []):
-                path = hit.get("path")
-                symbol = hit.get("symbol")
-                if symbol:
-                    mentions.append(symbol)
-                if path:
-                    mentions.append(path)
+            mentions.extend(_identifiers_from(response["result"]))
         for symbol in _unique(m for m in mentions if "/" not in m)[:3]:
             ctx_response = ctx.call("candidate.context", symbol=symbol)
             if ctx_response["ok"]:
                 result = ctx_response["result"]
-                mentions.extend(result.get("tests", []))
-                mentions.extend(result.get("calls", []))
+                mentions.extend(result.get("tests", []) or [])
+                mentions.extend(result.get("calls", []) or [])
+                mentions.extend(_identifiers_from(result))
                 if result.get("path") and result.get("line_start"):
                     start = int(result["line_start"])
                     ctx.call(

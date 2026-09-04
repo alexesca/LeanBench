@@ -65,6 +65,7 @@ def evaluate_cmd(
     runs_dir: Path | None = typer.Option(None, "--runs-dir"),
     repo: Path | None = typer.Option(None, "--repo", help="Override the repository path"),
     run_id_seed: str | None = typer.Option(None, "--run-id-seed", help="Deterministic run id"),
+    policy: str | None = typer.Option(None, "--policy", help="Agent-track policy"),
     set_: list[str] = typer.Option([], "--set", help="Config override key=value"),
 ) -> None:
     """Run a suite against a candidate and write an immutable run directory."""
@@ -79,6 +80,7 @@ def evaluate_cmd(
             repo_root=repo,
             run_id_seed=run_id_seed,
             runs_dir=runs_dir,
+            agent_policy=policy,
         )
     except LeanBenchError as exc:
         _fail(f"{type(exc).__name__}: {exc}")
@@ -94,6 +96,17 @@ def evaluate_cmd(
     )
     _echo(f"  tokens returned  {marker}{head['tokens_returned_total']}")
     _echo(f"  brittle tasks    {len(head['brittle_tasks'])}")
+    if "repository_tokens_to_correct_solution" in head:
+        # The signature metric is never printed without the correctness rate beside it:
+        # a candidate that fails fast otherwise posts a beautiful token number.
+        _echo(
+            f"  correctness      {head['correctness']:.4f}"
+            f"  ({int(head['tasks_correct'])}/{summary.task_count} tasks)"
+        )
+        _echo(
+            f"  repo tokens to correct solution  {marker}"
+            f"{head['repository_tokens_to_correct_solution']:.0f}"
+        )
     if summary.degraded:
         typer.secho(
             "  DEGRADED: infrastructure failures exceed the threshold; "
