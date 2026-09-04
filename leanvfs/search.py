@@ -85,9 +85,13 @@ class SearchEngine:
         # Query-side filtering is available but OFF by default. Symmetric query/document
         # normalization is the textbook answer and it was the obvious fix for
         # intent-phrased probes scoring zero — but measured on the httpx suite it made
-        # nDCG@10 WORSE (0.335 -> 0.322). Kept as a tunable rather than deleted, because
-        # "we tried it and it lost" is a result worth being able to re-run, and the value
-        # may differ on another corpus. It is not enabled on the strength of the theory.
+        # nDCG@10 WORSE. The full sweep on httpx, baseline 0.335:
+        #     stoplist + IDF weighting  0.317
+        #     stoplist only             0.322
+        #     IDF weighting only        0.321
+        # Every variant lost. Kept as a tunable rather than deleted, because "we tried it
+        # and it lost" is a result worth being able to re-run, and the value may differ on
+        # another corpus. It is not enabled on the strength of the theory.
         self.stop = frozenset(cfg.get("search.query_stoplist", []) or [])
         self.min_len = int(cfg.get("search.query_min_term_length", 1))
 

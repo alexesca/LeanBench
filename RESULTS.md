@@ -83,6 +83,7 @@ unstable or stale-gold flags.
 | Files / symbols | 125 / 1,991 | — | |
 | Facts / relationships | 10,824 / 5,934 | — | |
 | Index size | 3.96× source | ≤1.5× | ❌ |
+| Index size before WAL checkpoint | 4.18× source | — | fixed |
 | Resolution R0+R1 (CALLS) | 20.5% | ≥60% | ❌ |
 | Single-file incremental edit | 69.7 ms | 60 p50 / 150 p95 | ✅ |
 | Incremental equivalence | 0 divergences | 0 | ✅ |
@@ -111,11 +112,19 @@ deletion leaving referrers unresolved.
   prevent.
 - **A negative result, kept.** Query-side stoplisting plus IDF query weighting — the
   textbook fix for the 18/50 intent probes scoring zero — measured *worse*
-  (0.335 → 0.317) and was reverted. It survives as default-off config so the experiment
+  (0.335 → 0.317; stoplist alone 0.322, IDF weighting alone 0.321 — every variant lost)
+  and was reverted. It survives as default-off config so the experiment
   can be re-run elsewhere.
 - **A prior overturned by measurement.** The design assumed trivial builtin calls were
   noise. With suppression finally working, retrieval got worse; the terms are worth +1.3%
   nDCG@10 as lexical surface at no cost in agent-visible tokens. Default flipped.
+- **An un-checkpointed write-ahead log more than doubled the apparent index.** SQLite in WAL
+  mode retains every page written during a session until the log is folded back. Checkpointing
+  after commit took the index from **4.18× to 1.79× of source bytes** on httpx — the largest
+  single size reduction in the project, from a change with no algorithmic content at all. (The
+  3.96× in the table above is the current figure, after later extraction changes added facts
+  back.) Worth recording because it was invisible: nothing was slow, nothing errored, the
+  number was simply wrong by a factor of two.
 - **Result diversification is real but small.** Symbol indexes fill the top-10 with
   same-file hits (measured: ripgrep 10.0 distinct files, LeanVFS 5.1, MinAST 3.9).
   Capping hits per file is worth +1% nDCG@10 at cap 3.
